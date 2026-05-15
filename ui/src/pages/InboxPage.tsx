@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import { ArrowRight } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { MarkdownContent } from '../components/MarkdownContent'
 import { inboxLive } from '../live/inbox'
 import { useInboxSelection } from '../live/inbox-selection'
+import { useWorkspace } from '../tabs/store'
+import { useWorkspaces } from '../contexts/WorkspacesContext'
 import { readWorkspaceFile, type ReadFileResult } from '../components/workspace/api'
 import type { InboxEntry, InboxDoc } from '../api/inbox'
 
@@ -70,16 +73,48 @@ function Detail({ entry }: { entry: InboxEntry }) {
   const hasDocs = (entry.docs?.length ?? 0) > 0
   const hasComments = (entry.comments ?? '').trim().length > 0
 
+  // Workspace liveness — drives whether the jump-to-workspace affordance
+  // is enabled. A deleted workspace's inbox entry stays as a record but
+  // has nowhere to navigate to.
+  const { workspaces } = useWorkspaces()
+  const aliveWorkspace = workspaces.find((w) => w.id === entry.workspaceId) ?? null
+  const wsAlive = aliveWorkspace !== null
+  const displayLabel = aliveWorkspace?.tag ?? entry.workspaceLabel ?? entry.workspaceId
+
+  const openOrFocus = useWorkspace((s) => s.openOrFocus)
+  const setSidebar = useWorkspace((s) => s.setSidebar)
+
+  const openWorkspace = () => {
+    if (!wsAlive) return
+    // Switch the sidebar to Workspaces so the user sees the sessions list
+    // alongside the workspace tab (analogue to "open the issue then IM in
+    // chat" — they need both views).
+    setSidebar('workspaces')
+    openOrFocus({ kind: 'workspace', params: { wsId: entry.workspaceId } })
+  }
+
   return (
     <div className="max-w-[820px] mx-auto py-6 px-4 md:px-8">
-      {/* Header: workspace · timestamp. No "New" chip — selection always
+      {/* Header: workspace · timestamp. Workspace label is a button when
+       *  the workspace still exists. No "New" chip — selection always
        *  marks read, so by the time the detail pane renders the entry is
        *  read by definition; the chip would only ever flash for one
        *  render. The sidebar dot is the canonical unread signal. */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <span className="text-[14px] font-medium text-text">
-          {entry.workspaceLabel ?? entry.workspaceId}
-        </span>
+        {wsAlive ? (
+          <button
+            type="button"
+            onClick={openWorkspace}
+            className="text-[14px] font-medium text-text hover:text-accent transition-colors cursor-pointer"
+            title={`Open workspace ${displayLabel}`}
+          >
+            {displayLabel}
+          </button>
+        ) : (
+          <span className="text-[14px] font-medium text-text-muted/70 line-through" title="Workspace no longer exists">
+            {displayLabel}
+          </span>
+        )}
         <span className="text-[11px] text-text-muted/70 tabular-nums ml-auto">
           {formatAbsolute(entry.ts)}
           <span className="mx-1.5 text-text-muted/40">·</span>
@@ -106,7 +141,28 @@ function Detail({ entry }: { entry: InboxEntry }) {
         </div>
       )}
 
-      <div className="mt-8 pt-4 border-t border-border/50 text-[12px] text-text-muted/60 font-mono">
+      {/* Jump-to-workspace CTA. The Linear analogue is "open issue from the
+       *  inbox notification" — except OpenAlice's atom is a workspace, so
+       *  the action takes the user from a read-only inbox view into the
+       *  workspace's live chat where they can reply to the agent. */}
+      <div className="mt-8 pt-5 border-t border-border/50">
+        {wsAlive ? (
+          <button
+            type="button"
+            onClick={openWorkspace}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-accent/15 text-accent text-[12px] font-medium hover:bg-accent/25 transition-colors"
+          >
+            <span>Open {displayLabel}</span>
+            <ArrowRight size={13} strokeWidth={2} />
+          </button>
+        ) : (
+          <span className="text-[12px] text-text-muted/60 italic">
+            Workspace no longer exists — nowhere to navigate.
+          </span>
+        )}
+      </div>
+
+      <div className="mt-4 text-[11px] text-text-muted/40 font-mono">
         workspace: {entry.workspaceId}
       </div>
     </div>
