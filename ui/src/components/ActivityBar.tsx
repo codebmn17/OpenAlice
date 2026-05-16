@@ -1,8 +1,9 @@
-import { type LucideIcon, MessageSquare, Inbox, LineChart, GitBranch, BarChart3, Newspaper, Zap, Settings, Code2, TerminalSquare } from 'lucide-react'
+import { type LucideIcon, MessageSquare, Inbox, LineChart, GitBranch, BarChart3, Newspaper, Zap, Settings, Code2, TerminalSquare, ChevronDown } from 'lucide-react'
 import { type Page } from '../App'
 import { useWorkspace } from '../tabs/store'
 import type { ActivitySection, ViewSpec } from '../tabs/types'
 import { useUnreadInboxCount } from '../live/inbox-read'
+import { useActivityBarCollapse } from '../live/activity-bar-collapse'
 
 /**
  * Map ActivityBar page enum (visual layout grouping) to the ActivitySection
@@ -85,11 +86,26 @@ const NAV_SECTIONS: NavSection[] = [
 
 // ==================== ActivityBar ====================
 
+/**
+ * Linear-style left nav. 220px wide on all viewports; on mobile (<md)
+ * it slides in over the page from the left, on desktop it's a static
+ * column. Top section (no header) is the pinned-nav block — Chat,
+ * Inbox, Workspaces, etc. — always visible. Labeled sections (Agent,
+ * System) get collapsible chevron headers; collapse state persists
+ * to localStorage.
+ *
+ * The wider layout (vs VS Code's 56px icon-only column) is deliberate
+ * for OpenAlice's current phase: items in the bar live in different
+ * lifecycle stages and the section labels are how we'll later
+ * communicate that. Mostly-icon view would hide the differentiation.
+ */
 export function ActivityBar({ open, onClose }: ActivityBarProps) {
   const selectedSidebar = useWorkspace((state) => state.selectedSidebar)
   const setSidebar = useWorkspace((state) => state.setSidebar)
   const openOrFocus = useWorkspace((state) => state.openOrFocus)
   const unreadInbox = useUnreadInboxCount()
+  const collapsedSections = useActivityBarCollapse((s) => s.collapsedSections)
+  const toggleSection = useActivityBarCollapse((s) => s.toggleSection)
 
   return (
     <>
@@ -101,95 +117,117 @@ export function ActivityBar({ open, onClose }: ActivityBarProps) {
         onClick={onClose}
       />
 
-      {/* ActivityBar — mobile: 220px slide-in with labels; desktop: 56px icon-only column */}
+      {/* ActivityBar — 220px on all viewports. Mobile: slide-in over
+       *  page with backdrop. Desktop: static column flush left. */}
       <aside
         className={`
-          w-[220px] md:w-14 h-full flex flex-col shrink-0
-          bg-bg-secondary md:bg-bg
-          border-r border-border md:border-r-0
+          w-[220px] h-full flex flex-col shrink-0
+          bg-bg-secondary
+          border-r border-border
           fixed z-50 top-0 left-0 transition-transform duration-200
           ${open ? 'translate-x-0' : '-translate-x-full'}
           md:static md:translate-x-0 md:z-auto md:transition-none
         `}
       >
         {/* Branding */}
-        <div className="px-5 md:px-0 md:justify-center py-4 flex items-center gap-2.5">
+        <div className="px-5 py-4 flex items-center gap-2.5">
           <img
             src="/alice.ico"
             alt="Alice"
             className="w-7 h-7 rounded-lg ring-1 ring-accent/25 shadow-[0_0_8px_rgba(88,166,255,0.15)]"
             draggable={false}
           />
-          <h1 className="text-[15px] font-semibold text-text md:hidden">OpenAlice</h1>
+          <h1 className="text-[15px] font-semibold text-text">OpenAlice</h1>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 flex flex-col px-2 md:px-1.5 overflow-y-auto">
-          {NAV_SECTIONS.map((section, si) => (
-            <div key={si} className={si > 0 ? 'mt-4 md:mt-2' : ''}>
-              {section.sectionLabel && (
-                <p className="px-3 mb-1 text-[11px] font-medium text-text-muted/50 uppercase tracking-wider md:hidden">
-                  {section.sectionLabel}
-                </p>
-              )}
-              <div className="flex flex-col gap-0.5">
-                {section.items.map((item) => {
-                  const sec = activitySectionFor(item.page)
-                  const isActive = selectedSidebar === sec
-                  const Icon = item.icon
-                  const handleClick = () => {
-                    onClose()
-                    if (selectedSidebar === sec) {
-                      // Same section re-clicked: toggle sidebar off. Don't
-                      // touch the focused tab — collapsing the sidebar
-                      // shouldn't change what's in the editor.
-                      setSidebar(null)
-                    } else {
-                      setSidebar(sec)
-                      // Activities with a meaningful default landing (e.g.
-                      // Portfolio overview) jump straight to it. Sidebar-only
-                      // activities (Chat, Settings, Trading-as-Git, …) leave
-                      // tab focus alone — user picks from the sidebar.
-                      if (item.defaultTab) openOrFocus(item.defaultTab)
-                    }
-                  }
-                  return (
-                    <button
-                      key={item.page}
-                      type="button"
-                      onClick={handleClick}
-                      title={item.label}
-                      className={`relative flex items-center gap-3 px-3 py-2 md:px-0 md:py-2.5 md:rounded-none md:justify-center rounded-lg text-sm transition-colors text-left ${
-                        isActive
-                          ? 'bg-bg-tertiary text-text md:bg-transparent'
-                          : 'text-text-muted hover:text-text hover:bg-bg-tertiary/50 md:hover:bg-bg-secondary'
+        <nav className="flex-1 flex flex-col px-2 overflow-y-auto pb-3">
+          {NAV_SECTIONS.map((section, si) => {
+            const labeled = section.sectionLabel.length > 0
+            const isCollapsed = labeled && Boolean(collapsedSections[section.sectionLabel])
+            const showItems = !isCollapsed
+            return (
+              <div key={si} className={si > 0 ? 'mt-4' : ''}>
+                {labeled && (
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.sectionLabel)}
+                    className="w-full flex items-center gap-1.5 px-3 mb-1 py-1 text-[11px] font-medium text-text-muted/60 hover:text-text-muted uppercase tracking-wider transition-colors"
+                    aria-expanded={!isCollapsed}
+                    aria-controls={`activity-section-${si}`}
+                  >
+                    <ChevronDown
+                      size={12}
+                      strokeWidth={2.25}
+                      className={`shrink-0 transition-transform duration-150 ${
+                        isCollapsed ? '-rotate-90' : 'rotate-0'
                       }`}
-                    >
-                      {/* Active indicator — left vertical bar, desktop only */}
-                      <span
-                        className={`absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-accent transition-opacity duration-150 hidden md:block ${
-                          isActive ? 'opacity-100' : 'opacity-0'
-                        }`}
-                        aria-hidden
-                      />
-                      <span className="relative flex items-center justify-center w-5 h-5">
-                        <Icon size={18} strokeWidth={1.5} />
-                        {item.page === 'inbox' && unreadInbox > 0 && (
+                      aria-hidden
+                    />
+                    <span>{section.sectionLabel}</span>
+                  </button>
+                )}
+                {showItems && (
+                  <div className="flex flex-col gap-0.5" id={`activity-section-${si}`}>
+                    {section.items.map((item) => {
+                      const sec = activitySectionFor(item.page)
+                      const isActive = selectedSidebar === sec
+                      const Icon = item.icon
+                      const handleClick = () => {
+                        onClose()
+                        if (selectedSidebar === sec) {
+                          // Same section re-clicked: toggle sidebar off. Don't
+                          // touch the focused tab — collapsing the sidebar
+                          // shouldn't change what's in the editor.
+                          setSidebar(null)
+                        } else {
+                          setSidebar(sec)
+                          // Activities with a meaningful default landing (e.g.
+                          // Portfolio overview) jump straight to it. Sidebar-only
+                          // activities (Chat, Settings, Trading-as-Git, …) leave
+                          // tab focus alone — user picks from the sidebar.
+                          if (item.defaultTab) openOrFocus(item.defaultTab)
+                        }
+                      }
+                      return (
+                        <button
+                          key={item.page}
+                          type="button"
+                          onClick={handleClick}
+                          title={item.label}
+                          className={`relative flex items-center gap-3 px-3 py-1.5 rounded-md text-[13px] transition-colors text-left ${
+                            isActive
+                              ? 'bg-bg-tertiary text-text'
+                              : 'text-text-muted hover:text-text hover:bg-bg-tertiary/50'
+                          }`}
+                        >
+                          {/* Active indicator — left vertical bar */}
                           <span
-                            aria-label={`${unreadInbox} unread`}
-                            className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-red text-[9px] font-semibold text-white tabular-nums flex items-center justify-center"
-                          >
-                            {unreadInbox > 99 ? '99+' : unreadInbox}
+                            className={`absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r-full bg-accent transition-opacity duration-150 ${
+                              isActive ? 'opacity-100' : 'opacity-0'
+                            }`}
+                            aria-hidden
+                          />
+                          <span className="relative flex items-center justify-center w-5 h-5 shrink-0">
+                            <Icon size={16} strokeWidth={1.75} />
                           </span>
-                        )}
-                      </span>
-                      <span className="md:hidden">{item.label}</span>
-                    </button>
-                  )
-                })}
+                          <span className="flex-1 truncate">{item.label}</span>
+                          {item.page === 'inbox' && unreadInbox > 0 && (
+                            <span
+                              aria-label={`${unreadInbox} unread`}
+                              className="shrink-0 min-w-[18px] h-[18px] px-1.5 rounded-full bg-red text-[10px] font-semibold text-white tabular-nums flex items-center justify-center"
+                            >
+                              {unreadInbox > 99 ? '99+' : unreadInbox}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </nav>
 
       </aside>
