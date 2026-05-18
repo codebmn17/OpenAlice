@@ -42,8 +42,18 @@ export interface WorkspaceService {
   dispose(reason: string): Promise<void>;
 }
 
-export async function createWorkspaceService(): Promise<WorkspaceService> {
-  const config = loadConfig();
+export interface CreateWorkspaceServiceOptions {
+  /** Backend's bound web port — used to derive the CORS allowlist. */
+  readonly webPort: number;
+  /** Backend's bound MCP port — injected as `OPENALICE_MCP_URL` into each
+   *  PTY's env so workspace `mcp.json` templates' `${OPENALICE_MCP_URL:-...}`
+   *  fallback bridge resolves to the live backend (not whatever was the
+   *  default in template files). */
+  readonly mcpPort: number;
+}
+
+export async function createWorkspaceService(opts: CreateWorkspaceServiceOptions): Promise<WorkspaceService> {
+  const config = loadConfig({ webPort: opts.webPort });
 
   const registry = await WorkspaceRegistry.load(
     `${config.launcherRoot}/workspaces.json`,
@@ -121,6 +131,12 @@ export async function createWorkspaceService(): Promise<WorkspaceService> {
       const baseEnv = buildSpawnEnv(process.env, {
         AQ_WS_ID: wsId,
         AQ_LAUNCHER_REPO_ROOT: config.launcherRepoRoot,
+        // Tells workspace templates' `${OPENALICE_MCP_URL:-...}` substitution
+        // where to find the backend's MCP endpoint at spawn time. Without
+        // this, Claude Code / Codex inside the workspace would fall back to
+        // the template-default port literal which may not match the actual
+        // backend (guardian can pick a different port if the default is taken).
+        OPENALICE_MCP_URL: `http://127.0.0.1:${opts.mcpPort}/mcp`,
       });
       const spawnCtx = {
         ...(ctx.resume !== undefined ? { resume: ctx.resume } : {}),

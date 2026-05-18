@@ -47,7 +47,12 @@ import { attachWorkspacesWS, type AttachedWS } from './workspaces-ws.js'
 import type { Server as HttpServer } from 'node:http'
 
 export interface WebConfig {
+  /** Effective web port (env-overridden if guardian injected, else from config file). */
   port: number
+  /** Effective MCP port — passed through to workspace service so the
+   *  PTY-injected `OPENALICE_MCP_URL` env points at the live backend
+   *  (not the template-baked default). */
+  mcpPort: number
 }
 
 export class WebPlugin implements Plugin {
@@ -147,7 +152,10 @@ export class WebPlugin implements Plugin {
     // ==================== Workspaces (launcher-style PTY) ====================
     // Self-contained subsystem ported from auto-quant-launcher. Owns its own
     // state under ~/.openalice/workspaces/ and its own /api/workspaces/pty WS.
-    this.workspaceService = await createWorkspaceService()
+    this.workspaceService = await createWorkspaceService({
+      webPort: this.config.port,
+      mcpPort: this.config.mcpPort,
+    })
     if (this.workspaceServiceRef) this.workspaceServiceRef.current = this.workspaceService
     app.route('/api/workspaces', createWorkspaceRoutes(this.workspaceService))
 

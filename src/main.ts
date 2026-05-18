@@ -355,7 +355,10 @@ async function main() {
 
   // Web UI is always active (no enabled flag)
   if (config.connectors.web.port) {
-    corePlugins.push(new WebPlugin({ port: config.connectors.web.port }, workspaceServiceRef))
+    corePlugins.push(new WebPlugin(
+      { port: config.connectors.web.port, mcpPort: config.mcp.port },
+      workspaceServiceRef,
+    ))
   }
 
   // Optional plugins — toggleable at runtime via reconnectConnectors()
@@ -369,6 +372,7 @@ async function main() {
     optionalPlugins.set('telegram', new TelegramPlugin({
       token: config.connectors.telegram.botToken,
       allowedChatIds: config.connectors.telegram.chatIds,
+      webPort: config.connectors.web.port,
     }))
   }
 
@@ -407,6 +411,7 @@ async function main() {
         const p = new TelegramPlugin({
           token: fresh.connectors.telegram.botToken!,
           allowedChatIds: fresh.connectors.telegram.chatIds,
+          webPort: fresh.connectors.web.port,
         })
         await p.start(ctx)
         optionalPlugins.set('telegram', p)
