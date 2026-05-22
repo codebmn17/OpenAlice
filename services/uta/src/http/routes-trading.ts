@@ -255,7 +255,10 @@ export function createTradingRoutes(ctx: EngineContext) {
     return queryAccount(c, account, () => account.getMarketClock())
   })
 
-  // Quote
+  // Quote — `GET /quote/:symbol` keeps the path-param form for legacy
+  // UI callers; the AI tool layer uses the POST form below because it
+  // typically only has an `aliceId` (which the broker's native-key
+  // decoder expands server-side).
   app.get('/uta/:id/quote/:symbol', async (c) => {
     const account = resolveAccount(ctx, c)
     if (!account) return c.json({ error: 'Account not found' }, 404)
@@ -265,6 +268,28 @@ export function createTradingRoutes(ctx: EngineContext) {
       contract.symbol = c.req.param('symbol')
       return account.getQuote(contract)
     })
+  })
+
+  app.post('/uta/:id/quote', async (c) => {
+    const account = resolveAccount(ctx, c)
+    if (!account) return c.json({ error: 'Account not found' }, 404)
+    try {
+      const body = await c.req.json().catch(() => ({}))
+      const { Contract } = await import('@traderalice/ibkr')
+      let contract: typeof Contract.prototype
+      if (typeof body.aliceId === 'string' && body.aliceId.length > 0) {
+        contract = account.contractFromAliceId(body.aliceId)
+        for (const [k, v] of Object.entries(body)) {
+          if (k === 'aliceId') continue
+          if (v !== undefined) (contract as Record<string, unknown>)[k] = v
+        }
+      } else {
+        contract = Object.assign(new Contract(), body)
+      }
+      return c.json(await account.getQuote(contract))
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+    }
   })
 
   // Contract details — drilldown after a search hit. The body accepts

@@ -107,17 +107,26 @@ export class UTAAccountSDK {
   }
 
   getPositions(): Promise<Position[]> {
-    return this.client.get<Position[]>(`/api/trading/uta/${encodeURIComponent(this.id)}/positions`)
+    return this.client
+      .get<{ positions: Position[] }>(`/api/trading/uta/${encodeURIComponent(this.id)}/positions`)
+      .then((r) => r.positions)
   }
 
   getOrders(orderIds: string[] = []): Promise<OpenOrder[]> {
-    const params = orderIds.length > 0 ? { orderIds: orderIds.join(',') } : undefined
-    return this.client.get<OpenOrder[]>(`/api/trading/uta/${encodeURIComponent(this.id)}/orders`, params)
+    const params = orderIds.length > 0 ? { ids: orderIds.join(',') } : undefined
+    return this.client
+      .get<{ orders: OpenOrder[] }>(`/api/trading/uta/${encodeURIComponent(this.id)}/orders`, params)
+      .then((r) => r.orders)
   }
 
-  getQuote(contract: Contract): Promise<Quote> {
-    const symbol = contract.localSymbol ?? contract.symbol ?? ''
-    return this.client.get<Quote>(`/api/trading/uta/${encodeURIComponent(this.id)}/quote/${encodeURIComponent(symbol)}`)
+  /** Accepts either a full `Contract` (e.g. one already returned by
+   *  search) OR an aliceId lookup hint — UTA expands the aliceId via
+   *  the broker's native-key decoder, same as `getContractDetails`. */
+  getQuote(query: Contract | (Partial<Contract> & { aliceId?: string })): Promise<Quote> {
+    return this.client.post<Quote>(
+      `/api/trading/uta/${encodeURIComponent(this.id)}/quote`,
+      query,
+    )
   }
 
   getMarketClock(): Promise<MarketClock> {
