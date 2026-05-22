@@ -267,17 +267,31 @@ export function createTradingRoutes(ctx: EngineContext) {
     })
   })
 
-  // Contract details — drilldown after a search hit. Body shape mirrors
-  // the in-process `Contract` query: caller passes the relevant subset
-  // (symbol / aliceId / secType / conId / exchange / currency), broker
-  // dispatches to whichever field its native lookup uses.
+  // Contract details — drilldown after a search hit. The body accepts
+  // either a raw `Contract` subset (symbol / secType / conId / exchange
+  // / currency) OR an `aliceId` — when aliceId is present the broker's
+  // native-key decoder expands it to a full Contract before the lookup,
+  // matching the in-process `contractFromAliceId` flow the AI tool used
+  // to call directly.
   app.post('/uta/:id/contracts/details', async (c) => {
     const account = resolveAccount(ctx, c)
     if (!account) return c.json({ error: 'Account not found' }, 404)
     try {
       const body = await c.req.json().catch(() => ({}))
       const { Contract } = await import('@traderalice/ibkr')
-      const query = Object.assign(new Contract(), body)
+      let query: typeof Contract.prototype
+      if (typeof body.aliceId === 'string' && body.aliceId.length > 0) {
+        query = account.contractFromAliceId(body.aliceId)
+        // Caller-supplied fields (symbol / secType / currency) override
+        // the aliceId-derived defaults — same semantics as the in-process
+        // call in the old tool layer.
+        for (const [k, v] of Object.entries(body)) {
+          if (k === 'aliceId') continue
+          if (v !== undefined) (query as Record<string, unknown>)[k] = v
+        }
+      } else {
+        query = Object.assign(new Contract(), body)
+      }
       const details = await account.getContractDetails(query)
       return c.json(details ?? null)
     } catch (err) {

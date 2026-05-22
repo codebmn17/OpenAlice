@@ -136,9 +136,12 @@ export class UTAAccountSDK {
 
   // ==================== Contract details ====================
 
-  getContractDetails(query: Contract): Promise<ContractDetails | null> {
-    // The route accepts a `Contract`-shaped body and hydrates back into a
-    // Contract on the UTA side, so JSON-serializable fields ride along.
+  /** The body may be a raw `Contract`, a partial subset, or just an
+   *  `{ aliceId }` lookup hint — the UTA route handles `aliceId` →
+   *  Contract expansion via the broker's native-key decoder. */
+  getContractDetails(
+    query: Contract | (Partial<Contract> & { aliceId?: string }),
+  ): Promise<ContractDetails | null> {
     return this.client.post<ContractDetails | null>(
       `/api/trading/uta/${encodeURIComponent(this.id)}/contracts/details`,
       query,
