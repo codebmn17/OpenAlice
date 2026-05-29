@@ -711,6 +711,7 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
         baseUrl: typeof p.baseUrl === 'string' ? p.baseUrl : null,
         apiKey: typeof p.apiKey === 'string' ? p.apiKey : null,
         model: typeof p.model === 'string' ? p.model : null,
+        authMode: p.authMode === 'bearer' ? 'bearer' : p.authMode === 'x-api-key' ? 'x-api-key' : null,
       }));
       return c.json({ profiles: list });
     } catch (err) {
@@ -814,6 +815,7 @@ interface ProfileShape {
   baseUrl?: unknown;
   apiKey?: unknown;
   model?: unknown;
+  authMode?: unknown;
 }
 
 interface AgentConfigInput {
