@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { formatRelativeTime } from '../lib/intl'
 import { inboxLive } from '../live/inbox'
 import { useInboxRead } from '../live/inbox-read'
 import { useInboxSelection } from '../live/inbox-selection'
@@ -142,7 +143,7 @@ function InboxRow({
           {entry.workspaceLabel ?? entry.workspaceId}
         </span>
         <span className="shrink-0 text-[10px] text-text-muted/60 tabular-nums">
-          {formatRelative(entry.ts)}
+          {formatRelativeTime(entry.ts)}
         </span>
       </div>
 
@@ -210,10 +211,3 @@ function groupByBucket(entries: readonly InboxEntry[]): Array<[Bucket, InboxEntr
     .filter(([, items]) => items.length > 0)
 }
 
-function formatRelative(ts: number): string {
-  const diff = Date.now() - ts
-  if (diff < 60_000) return `${Math.floor(diff / 1000)}s`
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`
-  return `${Math.floor(diff / 86_400_000)}d`
-}
