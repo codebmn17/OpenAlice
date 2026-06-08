@@ -28,7 +28,7 @@ import type { SessionRecord } from '../../workspaces/session-registry.js';
 import { HeadlessCapacityError, resumeFromRecord, type SessionFactoryContext, type WorkspaceService } from '../../workspaces/service.js';
 import type { WorkspaceAiCred } from '../../workspaces/cli-adapter.js';
 import { addCredential, readCredentials, credentialWireShapeEnum, type Credential } from '../../core/config.js';
-import { inferCredentialVendor } from '../../core/credential-inference.js';
+import { inferCredentialVendor, resolveAnthropicAuthMode } from '../../core/credential-inference.js';
 
 const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -954,7 +954,10 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
         baseUrl,
         apiKey,
         model,
-        authMode: body?.authMode === 'bearer' ? 'bearer' : 'x-api-key',
+        // Resolve the anthropic auth header by baseUrl (api.minimax.io → bearer),
+        // same as the vault — the modal only sends authMode on the claude tab, so
+        // an anthropic-shape cred on an opencode/pi tab needs the baseUrl heuristic.
+        authMode: resolveAnthropicAuthMode({ authMode: body?.authMode, baseUrl }),
       });
       return c.json({ ok: true, response: result.text });
     } catch (err) {

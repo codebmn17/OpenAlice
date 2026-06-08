@@ -205,8 +205,11 @@ export function WorkspaceAIConfigModal({ wsId, onClose }: Props) {
       apiKey: cred.apiKey ?? '',
       model: defaultModel,
       // The credential's stored wire shape drives the test + the adapter config;
-      // fall back to the tab's native shape for pre-wireShape credentials.
-      wireShape: cred.wireShape ?? DEFAULT_WIRE_BY_TAB[tab],
+      // fall back to the tab's native shape for pre-wireShape credentials. Codex
+      // is Responses-only (its adapter ignores any other shape), so loading a
+      // chat/anthropic credential there must NOT make the Test probe a shape the
+      // runtime won't use — clamp it.
+      wireShape: tab === 'codex' ? 'openai-responses' : (cred.wireShape ?? DEFAULT_WIRE_BY_TAB[tab]),
       authMode: bearer ? 'bearer' : 'x-api-key',
     })
     gate.reset() // a new provider invalidates any prior test verdict
