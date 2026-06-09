@@ -88,7 +88,8 @@ export function KlinePanel({ selection }: Props) {
   const [meta, setMeta] = useState<BarMeta | null>(null)
   const [candidates, setCandidates] = useState<BarSourceCandidate[]>([])
   // null = vendor default for this symbol; a barId = an explicitly-picked source.
-  const [selectedBarId, setSelectedBarId] = useState<string | null>(null)
+  // Seed from the URL so the very first fetch is the right source (no vendor flicker).
+  const [selectedBarId, setSelectedBarId] = useState<string | null>(sourceParam)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

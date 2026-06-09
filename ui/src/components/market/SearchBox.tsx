@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { barsApi, type BarSourceCandidate, type AssetClass } from '../../api/market'
+import { type BarSourceCandidate, type AssetClass } from '../../api/market'
+import { useAssetSearch } from './useAssetSearch'
 
 const ASSET_CLASS_COLORS: Record<string, string> = {
   equity: 'bg-accent/15 text-accent',
@@ -22,36 +23,13 @@ export function SearchBox() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<BarSourceCandidate[]>([])
-  const [loading, setLoading] = useState(false)
+  // Shared with the market sidebar — one federated search logic, no drift.
+  const { results, loading } = useAssetSearch(query)
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const q = query.trim()
-    if (!q) {
-      setResults([])
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    const timer = setTimeout(async () => {
-      try {
-        // Federated source search: each result is a specific provider's K-line
-        // (vendor or a connected broker), labeled explicitly — no merging.
-        const res = await barsApi.searchSources(q, 24)
-        setResults(res.candidates)
-        setHighlight(0)
-      } catch (e) {
-        console.error('search failed', e)
-        setResults([])
-      } finally {
-        setLoading(false)
-      }
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [query])
+  useEffect(() => { setHighlight(0) }, [results])
 
   useEffect(() => {
     const onClickAway = (e: MouseEvent) => {
