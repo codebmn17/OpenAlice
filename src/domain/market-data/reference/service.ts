@@ -41,10 +41,14 @@ export function createReferenceData(deps: ReferenceDataDeps): ReferenceDataServi
     async movers(): Promise<MoversBoard> {
       // One list failing must not kill the board — same resilience rule as
       // the federated search fan-out.
-      const [gainers, losers, active] = await Promise.allSettled([
+      const [gainers, losers, active, uvGrowth, gTech, smallCaps, uvLarge] = await Promise.allSettled([
         deps.equityClient.getGainers(),
         deps.equityClient.getLosers(),
         deps.equityClient.getActive(),
+        deps.equityClient.getUndervaluedGrowth(),
+        deps.equityClient.getGrowthTech(),
+        deps.equityClient.getAggressiveSmallCaps(),
+        deps.equityClient.getUndervaluedLargeCaps(),
       ])
       const rows = (r: PromiseSettledResult<MoversBoard['gainers']>) =>
         r.status === 'fulfilled' ? r.value.slice(0, MOVERS_LIMIT) : []
@@ -52,6 +56,10 @@ export function createReferenceData(deps: ReferenceDataDeps): ReferenceDataServi
         gainers: rows(gainers),
         losers: rows(losers),
         active: rows(active),
+        undervaluedGrowth: rows(uvGrowth),
+        growthTech: rows(gTech),
+        smallCaps: rows(smallCaps),
+        undervaluedLarge: rows(uvLarge),
         meta: { provider: deps.equityProvider, asOf: new Date().toISOString() },
       }
     },

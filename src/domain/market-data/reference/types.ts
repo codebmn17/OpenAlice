@@ -41,6 +41,12 @@ export interface MoversBoard {
   gainers: EquityDiscoveryData[]
   losers: EquityDiscoveryData[]
   active: EquityDiscoveryData[]
+  // Yahoo screeners — fished out of the no-consumer endpoint pool. Same
+  // row shape, editorially distinct lists (value/growth/size lenses).
+  undervaluedGrowth: EquityDiscoveryData[]
+  growthTech: EquityDiscoveryData[]
+  smallCaps: EquityDiscoveryData[]
+  undervaluedLarge: EquityDiscoveryData[]
   meta: ReferenceMeta
 }
 

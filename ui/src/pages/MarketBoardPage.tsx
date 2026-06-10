@@ -50,7 +50,7 @@ export function MarketBoardPage({ spec }: PageProps) {
 
 // ==================== Movers ====================
 
-type MoversList = 'gainers' | 'losers' | 'active'
+type MoversList = 'gainers' | 'losers' | 'active' | 'undervaluedGrowth' | 'growthTech' | 'smallCaps' | 'undervaluedLarge'
 
 function MoversBoardView() {
   const { t } = useTranslation()
@@ -97,7 +97,7 @@ function MoversBoardView() {
       />
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 flex flex-col gap-4 min-h-0">
         <div className="flex items-center gap-1">
-          {(['gainers', 'losers', 'active'] as const).map((k) => (
+          {(['gainers', 'losers', 'active', 'undervaluedGrowth', 'growthTech', 'smallCaps', 'undervaluedLarge'] as const).map((k) => (
             <button
               key={k}
               type="button"
@@ -131,6 +131,10 @@ function listLabel(k: MoversList, t: ReturnType<typeof useTranslation>['t']): st
     case 'gainers': return t('market.moversGainers')
     case 'losers': return t('market.moversLosers')
     case 'active': return t('market.moversActive')
+    case 'undervaluedGrowth': return t('market.moversUndervaluedGrowth')
+    case 'growthTech': return t('market.moversGrowthTech')
+    case 'smallCaps': return t('market.moversSmallCaps')
+    case 'undervaluedLarge': return t('market.moversUndervaluedLarge')
   }
 }
 
@@ -431,6 +435,10 @@ function macroLabel(card: MacroSeriesCard, t: ReturnType<typeof useTranslation>[
     case 'ICSA': return t('market.macroClaims')
     case 'DCOILWTICO': return t('market.macroWti')
     case 'DTWEXBGS': return t('market.macroDollar')
+    case 'PAYEMS': return t('market.macroPayrolls')
+    case 'M2SL': return t('market.macroM2')
+    case 'UMCSENT': return t('market.macroSentiment')
+    case 'T10YIE': return t('market.macroBreakeven')
     default: return card.label
   }
 }

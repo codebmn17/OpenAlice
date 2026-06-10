@@ -36,6 +36,11 @@ export interface MoversBoard {
   gainers: MoverRow[]
   losers: MoverRow[]
   active: MoverRow[]
+  /** Yahoo screeners — value/growth/size lenses, same row shape. */
+  undervaluedGrowth: MoverRow[]
+  growthTech: MoverRow[]
+  smallCaps: MoverRow[]
+  undervaluedLarge: MoverRow[]
   meta: ReferenceMeta
 }
 

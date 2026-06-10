@@ -119,6 +119,20 @@ const demoMovers: MoversBoard = {
     mover('AAPL', 'Apple Inc.', 228.9, 0.031, 6.4e7, 1.2),
     mover('NVDA', 'NVIDIA Corporation', 1042.1, 0.062, 5.1e7, 1.8),
   ],
+  undervaluedGrowth: [
+    mover('MGNI', 'Magnite, Inc.', 15.8, 0.021, 4.2e6, 1.1),
+    mover('PFE', 'Pfizer Inc.', 28.4, 0.008, 3.1e7, 0.9),
+  ],
+  growthTech: [
+    mover('APH', 'Amphenol Corporation', 154.1, 0.014, 6.8e6, 1.0),
+    mover('CRWD', 'CrowdStrike Holdings', 401.2, 0.027, 3.4e6, 1.3),
+  ],
+  smallCaps: [
+    mover('LESL', "Leslie's, Inc.", 8.2, 0.059, 5.6e6, 2.1),
+  ],
+  undervaluedLarge: [
+    mover('BCH', 'Banco De Chile', 38.5, 0.006, 1.2e6, 0.8),
+  ],
   meta: { provider: 'yfinance', asOf: '2026-06-10T13:30:00.000Z' },
 }
 

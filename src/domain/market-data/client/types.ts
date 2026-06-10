@@ -52,6 +52,11 @@ export interface EquityClientLike {
   getGainers(params?: Record<string, unknown>): Promise<EquityDiscoveryData[]>
   getLosers(params?: Record<string, unknown>): Promise<EquityDiscoveryData[]>
   getActive(params?: Record<string, unknown>): Promise<EquityDiscoveryData[]>
+  // Yahoo screeners (keyless) — value/growth/size discovery lenses.
+  getUndervaluedGrowth(params?: Record<string, unknown>): Promise<EquityDiscoveryData[]>
+  getGrowthTech(params?: Record<string, unknown>): Promise<EquityDiscoveryData[]>
+  getAggressiveSmallCaps(params?: Record<string, unknown>): Promise<EquityDiscoveryData[]>
+  getUndervaluedLargeCaps(params?: Record<string, unknown>): Promise<EquityDiscoveryData[]>
 }
 
 export interface CryptoClientLike {
