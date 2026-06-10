@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { Fetcher } from '../../../core/provider/abstract/fetcher.js'
 import { HousePriceIndexDataSchema } from '../../../standard-models/house-price-index.js'
 import { EmptyDataError } from '../../../core/provider/utils/errors.js'
-import { fetchOecdCsv, resolveCountryCode, periodToDate, CODE_TO_NAME, FREQ_MAP, filterAndSort } from '../utils/oecd-helpers.js'
+import { fetchOecdCsv, resolveCountryCodes, periodToDate, CODE_TO_NAME, FREQ_MAP, filterAndSort } from '../utils/oecd-helpers.js'
 
 export const OECDHousePriceIndexQueryParamsSchema = z.object({
   country: z.string().default('united_states'),
@@ -28,7 +28,7 @@ export class OECDHousePriceIndexFetcher extends Fetcher {
     query: OECDHousePriceIndexQueryParams,
     _credentials: Record<string, string> | null,
   ): Promise<Record<string, unknown>[]> {
-    const cc = resolveCountryCode(query.country)
+    const cc = resolveCountryCodes(query.country)
     const freq = FREQ_MAP[query.frequency] ?? 'Q'
     const rows = await fetchOecdCsv(
       // Agency moved in the 2025/26 SDMX reshuffle (was OECD.SDD.TPS, versioned).

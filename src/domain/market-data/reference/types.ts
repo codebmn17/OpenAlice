@@ -22,6 +22,7 @@ import type { TermStructureBoard } from './term-structure.js'
 import type { ValuationStrip } from './valuation.js'
 import type { GlobalMacroBoard } from './global-macro.js'
 import type { ShippingBoard } from './shipping.js'
+import type { FedBoard } from './fed.js'
 
 /** Envelope on every reference payload. Provider is an explicit label —
  *  same philosophy as the bar layer's sourceId: annotate the source,
@@ -121,4 +122,7 @@ export interface ReferenceDataService {
   globalMacro(): Promise<GlobalMacroBoard>
   /** Headline-chokepoint transit volumes from IMF PortWatch — keyless. */
   shipping(): Promise<ShippingBoard>
+  /** Fed policy read: H.4.1 balance sheet (FRED key required), primary
+   *  dealer positions (NY Fed, keyless), FOMC documents (keyless). */
+  fed(): Promise<FedBoard>
 }

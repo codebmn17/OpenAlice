@@ -137,6 +137,10 @@ export interface GlobalMacroRow {
   cpiYoy: GlobalMacroCell
   shortRate: GlobalMacroCell
   cli: GlobalMacroCell
+  /** Real house price index, 2015 = 100. */
+  housePrice: GlobalMacroCell
+  /** Share price index, 2015 = 100. */
+  sharePrice: GlobalMacroCell
 }
 
 export interface GlobalMacroBoard {
@@ -163,6 +167,20 @@ export interface ShippingBoard {
   meta: ReferenceMeta
 }
 
+export interface FedDocument {
+  date: string
+  title: string
+  type: string
+  url: string
+}
+
+export interface FedBoard {
+  cards: MacroSeriesCard[]
+  documents: FedDocument[]
+  errors?: Partial<Record<'balanceSheet' | 'dealers' | 'documents', string>>
+  meta: ReferenceMeta
+}
+
 export const referenceApi = {
   movers: () => fetchJson<MoversBoard>('/api/reference/movers'),
   calendar: () => fetchJson<CalendarBoard>('/api/reference/calendar'),
@@ -171,4 +189,5 @@ export const referenceApi = {
   valuation: () => fetchJson<ValuationStrip>('/api/reference/valuation'),
   globalMacro: () => fetchJson<GlobalMacroBoard>('/api/reference/global-macro'),
   shipping: () => fetchJson<ShippingBoard>('/api/reference/shipping'),
+  fed: () => fetchJson<FedBoard>('/api/reference/fed'),
 }

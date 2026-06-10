@@ -11,6 +11,7 @@ import { fetchTermStructure, type TermStructureBoard } from './term-structure.js
 import { fetchValuationStrip, type ValuationStrip } from './valuation.js'
 import { fetchGlobalMacro, type GlobalMacroBoard } from './global-macro.js'
 import { fetchShipping, type ShippingBoard } from './shipping.js'
+import { fetchFedBoard, type FedBoard } from './fed.js'
 
 export interface ReferenceDataDeps {
   equityClient: EquityClientLike
@@ -132,6 +133,10 @@ export function createReferenceData(deps: ReferenceDataDeps): ReferenceDataServi
 
     async shipping(): Promise<ShippingBoard> {
       return fetchShipping(deps.economyClient)
+    },
+
+    async fed(): Promise<FedBoard> {
+      return fetchFedBoard(deps.economyClient)
     },
   }
 }
