@@ -11,7 +11,8 @@ import type {
   // Equity
   EquitySearchData, EquityHistoricalData, EquityInfoData, KeyMetricsData,
   IncomeStatementData, BalanceSheetData, CashFlowStatementData, FinancialRatiosData,
-  PriceTargetConsensusData, CalendarEarningsData, InsiderTradingData, EquityDiscoveryData,
+  PriceTargetConsensusData, CalendarEarningsData, CalendarIpoData, CalendarDividendData,
+  InsiderTradingData, EquityDiscoveryData,
   // Crypto
   CryptoSearchData, CryptoHistoricalData,
   // Currency
@@ -27,9 +28,11 @@ import type {
   OptionsChainsData, OptionsSnapshotsData, OptionsUnusualData,
   // Commodity
   CommoditySpotPriceData, PetroleumStatusReportData, ShortTermEnergyOutlookData,
-  // Economy (FRED + BLS)
+  // Economy (FRED + BLS + OECD)
   FredSearchData, FredSeriesData, FredRegionalData,
   BlsSearchData, BlsSeriesData,
+  ConsumerPriceIndexData, CountryInterestRatesData, CompositeLeadingIndicatorData,
+  PortInfoData, PortVolumeData, ChokepointInfoData, ChokepointVolumeData,
 } from '@traderalice/opentypebb'
 
 export interface EquityClientLike {
@@ -43,6 +46,8 @@ export interface EquityClientLike {
   getFinancialRatios(params: Record<string, unknown>): Promise<FinancialRatiosData[]>
   getEstimateConsensus(params: Record<string, unknown>): Promise<PriceTargetConsensusData[]>
   getCalendarEarnings(params?: Record<string, unknown>): Promise<CalendarEarningsData[]>
+  getCalendarIpo(params?: Record<string, unknown>): Promise<CalendarIpoData[]>
+  getCalendarDividend(params?: Record<string, unknown>): Promise<CalendarDividendData[]>
   getInsiderTrading(params: Record<string, unknown>): Promise<InsiderTradingData[]>
   getGainers(params?: Record<string, unknown>): Promise<EquityDiscoveryData[]>
   getLosers(params?: Record<string, unknown>): Promise<EquityDiscoveryData[]>
@@ -98,6 +103,16 @@ export interface EconomyClientLike {
   // BLS — Bureau of Labor Statistics, mounted under /economy/survey/* upstream
   getBlsSearch(params: Record<string, unknown>): Promise<BlsSearchData[]>
   getBlsSeries(params: Record<string, unknown>): Promise<BlsSeriesData[]>
+  // OECD — cross-country comparison (keyless). Units differ per endpoint:
+  // CPI yoy comes back in percent, interest rates as fractions.
+  getCPI(params: Record<string, unknown>): Promise<ConsumerPriceIndexData[]>
+  getInterestRates(params?: Record<string, unknown>): Promise<CountryInterestRatesData[]>
+  getCompositeLeadingIndicator(params?: Record<string, unknown>): Promise<CompositeLeadingIndicatorData[]>
+  // IMF PortWatch — satellite AIS shipping data (keyless ArcGIS layers).
+  getPortInfo(params?: Record<string, unknown>): Promise<PortInfoData[]>
+  getPortVolume(params?: Record<string, unknown>): Promise<PortVolumeData[]>
+  getChokepointInfo(params?: Record<string, unknown>): Promise<ChokepointInfoData[]>
+  getChokepointVolume(params?: Record<string, unknown>): Promise<ChokepointVolumeData[]>
 }
 
 export interface DerivativesClientLike {
