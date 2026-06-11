@@ -1,33 +1,38 @@
 # Chat workspace
 
 OpenAlice's market/data tools are available here — reachable through the
-OpenAlice MCP server and/or the `alice` CLI on your shell PATH, depending on how
+OpenAlice MCP server and/or the CLIs on your shell PATH, depending on how
 this workspace was launched. Check what's actually wired before you start:
 
 - `/mcp` — shows the connected OpenAlice MCP server(s)
-- `alice --help` — lists the CLI command groups (when `alice` is on PATH)
+- `traderhub --help` / `alice --help` — the CLI command groups (when on PATH)
 
 Use whichever is available; if a data tool isn't where you expect, check the
 other. Trading and scheduling stay on MCP by design.
 
-## OpenAlice CLIs (`alice`, `alice-workspace`)
+## OpenAlice CLIs (`traderhub`, `alice`, `alice-workspace`)
 
-Two CLIs on your shell PATH, split by what they touch — handy for a quick
+Three CLIs on your shell PATH, split by what they touch — handy for a quick
 lookup, a pipe, or a grep without a tool round-trip:
 
 ```bash
-alice --help                       # MARKET DATA: news/market/equity/economy/analysis/think
-alice market search --query AAPL   # find a symbol
+traderhub --help                   # LOW-FREQUENCY MARKET DATA: boards, fundamentals,
+                                   #   macro series, calendars, ETF, shipping, Fed
+traderhub board get --board macro  # a finished board in one call
+traderhub equity profile --symbol AAPL
+
+alice --help                       # WORKBENCH: news/market-search/analysis/think
+alice market search --query AAPL   # find a symbol (barIds for charts/quant)
 alice news grep --pattern BTC      # search collected news, then…
 alice news read --id <id>          # …read one article by its stable id
 
 alice-workspace --help             # COLLABORATION: inbox push + entity tracking
 ```
 
-Both hit the same backend the MCP tools do. Output is JSON on stdout; a non-zero
+All hit the same backend the MCP tools do. Output is JSON on stdout; a non-zero
 exit means it failed. (If this workspace has no `openalice` MCP tool server, the
-`alice*` CLIs are how you reach OpenAlice — the bundled `openalice-cli` skill is
-the full playbook.)
+CLIs are how you reach OpenAlice — the bundled `traderhub` and `openalice-cli`
+skills are the full playbooks.)
 
 ## Handing work back to the user
 
