@@ -55,7 +55,7 @@ export interface ITradingGit {
   /** `localSymbol` is the broker-native symbol from the order's operation
    *  contract — passed to IBroker.getOrder as the symbolHint so lookups
    *  survive restarts (CCXT's order API is symbol-scoped). */
-  getPendingOrderIds(): Array<{ orderId: string; symbol: string; localSymbol?: string }>
+  getPendingOrderIds(): Array<{ orderId: string; symbol: string; localSymbol?: string; aliceId?: string }>
   /** Squash externally-observed open orders into one [observed] commit. */
   recordObservedOrders(params: {
     observed: Array<{ contract: Contract; order: Order; orderId: string }>

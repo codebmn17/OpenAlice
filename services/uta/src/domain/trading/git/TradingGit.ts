@@ -589,7 +589,7 @@ export class TradingGit implements ITradingGit {
     return { hash, updatedCount: updates.length, updates }
   }
 
-  getPendingOrderIds(): Array<{ orderId: string; symbol: string; localSymbol?: string }> {
+  getPendingOrderIds(): Array<{ orderId: string; symbol: string; localSymbol?: string; aliceId?: string }> {
     // Scan newest→oldest to find latest known status per orderId
     const orderStatus = new Map<string, string>()
 
@@ -602,7 +602,7 @@ export class TradingGit implements ITradingGit {
     }
 
     // Collect orders still pending
-    const pending: Array<{ orderId: string; symbol: string; localSymbol?: string }> = []
+    const pending: Array<{ orderId: string; symbol: string; localSymbol?: string; aliceId?: string }> = []
     const seen = new Set<string>()
 
     for (const commit of this.commits) {
@@ -618,11 +618,16 @@ export class TradingGit implements ITradingGit {
           // Broker-native symbol for symbol-scoped order lookups (CCXT).
           // Persisted with the operation, so it survives process restarts
           // where the broker's in-memory orderId→symbol cache is empty.
-          const localSymbol =
-            (op?.action === 'placeOrder' || op?.action === 'closePosition' || op?.action === 'observeExternalOrder')
-              ? op.contract?.localSymbol || undefined
-              : undefined
-          pending.push({ orderId: result.orderId, symbol, ...(localSymbol && { localSymbol }) })
+          const hasContract =
+            op?.action === 'placeOrder' || op?.action === 'closePosition' || op?.action === 'observeExternalOrder'
+          const localSymbol = hasContract ? op.contract?.localSymbol || undefined : undefined
+          const aliceId = hasContract ? op.contract?.aliceId || undefined : undefined
+          pending.push({
+            orderId: result.orderId,
+            symbol,
+            ...(localSymbol && { localSymbol }),
+            ...(aliceId && { aliceId }),
+          })
           seen.add(result.orderId)
         }
       }

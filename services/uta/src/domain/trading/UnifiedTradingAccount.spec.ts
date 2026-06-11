@@ -643,6 +643,81 @@ describe('UTA — sync', () => {
     expect(result.updates[0].filledPrice).toBe('149.2')
   })
 
+  it('listing mode: getOrder is spent ONLY on orders absent from the open-orders listing', async () => {
+    const { uta, broker } = createUTA()
+
+    // Two pending limit orders; one fills (vanishes from the listing).
+    uta.stagePlaceOrder({ aliceId: 'mock-paper|AAPL', symbol: 'AAPL', action: 'BUY', orderType: 'LMT', totalQuantity: '10', lmtPrice: '150' })
+    uta.commit('a'); const a = (await uta.push()).submitted[0]!.orderId!
+    uta.stagePlaceOrder({ aliceId: 'mock-paper|AAPL', symbol: 'AAPL', action: 'BUY', orderType: 'LMT', totalQuantity: '5', lmtPrice: '140' })
+    uta.commit('b'); const b = (await uta.push()).submitted[0]!.orderId!
+    broker.fillOrder(a, { price: '149' })
+
+    const getOrderSpy = vi.spyOn(broker, 'getOrder')
+    const result = await uta.sync()
+
+    // Transition pass: the confirm step polls ONLY the vanished order (a).
+    // (_getState's snapshot read adds delegated getOrder calls via
+    // getOrders — those happen once per pass WITH updates, not per order
+    // per pass, so assert on the confirm call specifically.)
+    expect(getOrderSpy.mock.calls.filter((c) => c[0] === a && c.length > 1)).toHaveLength(1)
+    expect(result.updatedCount).toBe(1)
+    expect(uta.getPendingOrderIds().map((p) => p.orderId)).toEqual([b])
+
+    // Steady-state pass: order b hangs (still in the listing) — ZERO
+    // getOrder calls. A stop/TP parked for weeks costs one listing per
+    // pass for the whole account, not one poll per order.
+    getOrderSpy.mockClear()
+    const second = await uta.sync()
+    expect(second.updatedCount).toBe(0)
+    expect(getOrderSpy).not.toHaveBeenCalled()
+  })
+
+  it('per-order fallback: brokers without a listing API still detect fills', async () => {
+    const { uta, broker } = createUTA()
+    // Simulate a venue with no open-orders enumeration.
+    ;(broker as { getOpenOrders?: unknown }).getOpenOrders = undefined
+
+    uta.stagePlaceOrder({ aliceId: 'mock-paper|AAPL', symbol: 'AAPL', action: 'BUY', orderType: 'LMT', totalQuantity: '10', lmtPrice: '150' })
+    uta.commit('limit buy')
+    const orderId = (await uta.push()).submitted[0]!.orderId!
+    broker.fillPendingOrder(orderId, 149)
+
+    const result = await uta.sync()
+    expect(result.updatedCount).toBe(1)
+    expect(result.updates[0].currentStatus).toBe('filled')
+  })
+
+  it('per-order fallback: hangers back off (5min cadence after an hour)', async () => {
+    vi.useFakeTimers()
+    try {
+      const { uta, broker } = createUTA()
+      ;(broker as { getOpenOrders?: unknown }).getOpenOrders = undefined
+
+      uta.stagePlaceOrder({ aliceId: 'mock-paper|AAPL', symbol: 'AAPL', action: 'BUY', orderType: 'LMT', totalQuantity: '10', lmtPrice: '150' })
+      uta.commit('limit buy')
+      await uta.push()
+
+      const getOrderSpy = vi.spyOn(broker, 'getOrder')
+      await uta.sync() // fresh — polls (registers firstSeen)
+      expect(getOrderSpy).toHaveBeenCalledTimes(1)
+
+      // Two hours later, two syncs 10s apart: only the first polls.
+      vi.advanceTimersByTime(2 * 60 * 60_000)
+      await uta.sync()
+      vi.advanceTimersByTime(10_000)
+      await uta.sync()
+      expect(getOrderSpy).toHaveBeenCalledTimes(2)
+
+      // 5 minutes on, it's due again.
+      vi.advanceTimersByTime(5 * 60_000)
+      await uta.sync()
+      expect(getOrderSpy).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('passes the operation localSymbol as the broker symbolHint', async () => {
     const { uta, broker } = createUTA()
 
@@ -674,6 +749,44 @@ describe('UTA — sync', () => {
     broker.setOrders([])
     const result = await uta.sync()
     expect(result.updatedCount).toBe(0)
+  })
+})
+
+// ==================== reconcile race guard ====================
+
+describe('UTA — wallet reconcile defers while orders are in flight', () => {
+  it('drift is not booked at mark price while the aliceId has a pending order; residual reconciles after settlement', async () => {
+    const { uta, broker } = createUTA()
+    const aliceId = 'mock-paper|AAPL'
+    broker.setPositions([
+      makePosition({
+        contract: makeContract({ aliceId }),
+        quantity: new Decimal(10),
+        avgCost: '150',
+        marketPrice: '160',
+        avgCostSource: 'wallet',
+      }),
+    ])
+
+    // In-flight order on the same aliceId.
+    uta.stagePlaceOrder({ aliceId, symbol: 'AAPL', action: 'BUY', orderType: 'LMT', totalQuantity: '5', lmtPrice: '150' })
+    uta.commit('limit buy')
+    const orderId = (await uta.push()).submitted[0]!.orderId!
+
+    // The dfb01435 race: positions read while the fill is in flight must
+    // NOT record drift as a mark-price reconcile.
+    await uta.getPositions()
+    expect(uta.log({ limit: 10 }).some((c) => c.message.startsWith('reconcile:'))).toBe(false)
+
+    // Order settles and syncs (fill enters cost basis at execution price).
+    broker.fillPendingOrder(orderId, 149)
+    await uta.sync()
+
+    // No in-flight orders left — the TRUE residual (the pre-existing 10
+    // that no order explains) reconciles now.
+    await uta.getPositions()
+    const reconcile = uta.log({ limit: 10 }).find((c) => c.message.startsWith('reconcile:'))
+    expect(reconcile).toBeDefined()
   })
 })
 
