@@ -178,3 +178,30 @@ is unrecoverable from listings → `PlaceOrderResult.legs` tracked through
 the ledger. Plus sync-commit log rows now attribute per-update symbols
 (was `unknown`). S2/S3/S4/S5/S6 all green after fixes; OCO leg-cancel
 behavior (cancel one → venue kills both) verified and synced faithfully.
+
+Round 7 (2026-06-12, IBKR paper first acceptance run): 5 findings, 2
+pre-located by reading the adapter BEFORE connecting (do this for every
+new broker). (1) `placeOrder(_tpsl)` silently ignored TP/SL — the okx
+naked-entry species, gated with a loud refusal pre-test (native bracket =
+parent/child + `legs`, ANG-103 batch). (2) `getOpenOrders` unwired despite
+the bridge primitive existing — 5-line wire-up; NOTE reqOpenOrders only
+sees THIS clientId's orders, manual TWS-UI orders need reqAllOpenOrders +
+permId identity (deferred). (3) By-conId quote → TWS error 321: reqMktData
+won't resolve a bare conId even though the wire carries it — enrich via
+reqContractDetails once + cache. (4) Account-cache delta semantics: TWS
+pushes position DELTAS between accountDownloadEnd markers; the
+swap-on-end cache showed a filled sell as still-held for minutes, zero-qty
+(closed) updates were dropped entirely, and repeated updates duplicated
+rows — upsert-by-conId into live cache + pending. Found by S8's restart
+then cross-checking venue truth with an independent-clientId probe.
+(5) `decodeContractProto` had an EMPTY `if (cp.secType !== undefined)`
+body — a dropped assignment; every portfolio row violated the
+IBKR-superset row contract with secType ''.
+IBKR venue facts: modify keeps the SAME orderId (assert the inverse of
+Alpaca); stops sit `PreSubmitted` (not terminal); paper quotes need
+delayed data — full-protobuf REQ_MARKET_DATA_TYPE(3) + REQ_MKT_DATA still
+got 10089 (entitlement question parked, price oracle = Alpaca AAPL quote
+meanwhile); multi-currency books (HKD+USD) blind-sum at the BROKER layer
+(getAccount + aggregateAccountFromPositions) — the live numbers for
+ANG-101. S2/S4/S6/S8/S9/S11/S12 green; restart survival incl. TWS
+reconnect verified.

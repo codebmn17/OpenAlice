@@ -444,6 +444,26 @@ export class RequestBridge extends DefaultEWrapper {
 
   // ---- Account subscription callbacks (persistent cache) ----
 
+  /**
+   * Upsert-by-conId into a position list; null row = remove.
+   * TWS sends DELTAS between accountDownloadEnd markers (a fill updates one
+   * position immediately, the next full download can be ~3 minutes away) —
+   * so updates must apply to BOTH the live cache (immediate visibility) and
+   * the pending rebuild buffer (next swap must not resurrect stale rows).
+   * Keying by conId also prevents duplicate rows when the same position
+   * updates repeatedly within one batch window (price ticks do this).
+   */
+  private upsertPosition(list: AccountDownloadResult['positions'], contract: Contract, row: AccountDownloadResult['positions'][number] | null): void {
+    const idx = list.findIndex((p) => p.contract.conId === contract.conId)
+    if (row === null) {
+      if (idx >= 0) list.splice(idx, 1)
+    } else if (idx >= 0) {
+      list[idx] = row
+    } else {
+      list.push(row)
+    }
+  }
+
   override updatePortfolio(
     contract: Contract,
     position: Decimal,
@@ -454,10 +474,10 @@ export class RequestBridge extends DefaultEWrapper {
     realizedPNL: string,
     _accountName: string,
   ): void {
-    if (!this.accountCachePending_) return
-    if (position.isZero()) return
-
-    this.accountCachePending_.positions.push(buildPosition({
+    // Zero quantity = position fully closed — must REMOVE from cache, not
+    // be ignored (a closed position used to linger until the next full
+    // download).
+    const row = position.isZero() ? null : buildPosition({
       contract,
       currency: contract.currency || 'USD',
       side: position.greaterThan(0) ? 'long' : 'short',
@@ -471,11 +491,16 @@ export class RequestBridge extends DefaultEWrapper {
       unrealizedPnL: unrealizedPNL,
       realizedPnL: realizedPNL,
       multiplier: contract.multiplier || '1',
-    }))
+    })
+
+    if (this.accountCachePending_) this.upsertPosition(this.accountCachePending_.positions, contract, row)
+    if (this.accountCache_) this.upsertPosition(this.accountCache_.positions, contract, row)
   }
 
   override updateAccountValue(key: string, val: string, _currency: string, _accountName: string): void {
     this.accountCachePending_?.values.set(key, val)
+    // Deltas must be visible immediately, not at the next downloadEnd swap.
+    this.accountCache_?.values.set(key, val)
   }
 
   override accountDownloadEnd(_accountName: string): void {
@@ -504,12 +529,20 @@ export class RequestBridge extends DefaultEWrapper {
     const snap = this.snapshots.get(reqId)
     if (!snap) return
 
+    // Delayed variants (66-73) arrive instead of live ticks when the
+    // account has no live subscription and reqMarketDataType(3) is set —
+    // paper accounts live here. Same field, 15-min-delayed value.
     switch (tickType) {
-      case TickTypeEnum.BID: snap.bid = price; break
-      case TickTypeEnum.ASK: snap.ask = price; break
-      case TickTypeEnum.LAST: snap.last = price; break
-      case TickTypeEnum.HIGH: snap.high = price; break
-      case TickTypeEnum.LOW: snap.low = price; break
+      case TickTypeEnum.BID:
+      case TickTypeEnum.DELAYED_BID: snap.bid = price; break
+      case TickTypeEnum.ASK:
+      case TickTypeEnum.DELAYED_ASK: snap.ask = price; break
+      case TickTypeEnum.LAST:
+      case TickTypeEnum.DELAYED_LAST: snap.last = price; break
+      case TickTypeEnum.HIGH:
+      case TickTypeEnum.DELAYED_HIGH: snap.high = price; break
+      case TickTypeEnum.LOW:
+      case TickTypeEnum.DELAYED_LOW: snap.low = price; break
     }
   }
 
@@ -517,7 +550,7 @@ export class RequestBridge extends DefaultEWrapper {
     const snap = this.snapshots.get(reqId)
     if (!snap) return
 
-    if (tickType === TickTypeEnum.VOLUME) {
+    if (tickType === TickTypeEnum.VOLUME || tickType === TickTypeEnum.DELAYED_VOLUME) {
       snap.volume = size.toNumber()
     }
   }

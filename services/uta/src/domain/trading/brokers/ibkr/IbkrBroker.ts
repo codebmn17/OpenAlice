@@ -106,6 +106,11 @@ export class IbkrBroker implements IBroker {
       throw BrokerError.from(err, 'NETWORK')
     }
 
+    // Delayed-data fallback: without this, a snapshot on an unsubscribed
+    // symbol (every paper account) gets neither ticks nor an error — the
+    // request just times out. Type 3 = live when entitled, delayed otherwise.
+    this.client.reqMarketDataType(3)
+
     // Resolve account ID
     this.accountId = this.config.accountId ?? this.bridge.getAccountId()
     if (!this.accountId) {
@@ -150,7 +155,17 @@ export class IbkrBroker implements IBroker {
 
   // ==================== Trading operations ====================
 
-  async placeOrder(contract: Contract, order: Order, _tpsl?: TpSlParams): Promise<PlaceOrderResult> {
+  async placeOrder(contract: Contract, order: Order, tpsl?: TpSlParams): Promise<PlaceOrderResult> {
+    // Attached TP/SL: not implemented yet (native path = parent + child
+    // orders with parentId + transmit chain — see ANG-103 batch). Refuse
+    // loudly rather than silently placing an unprotected entry; the ledger
+    // would otherwise record protection the venue never received.
+    if (tpsl?.takeProfit || tpsl?.stopLoss) {
+      return {
+        success: false,
+        error: 'IBKR attached TP/SL (bracket) is not implemented yet — refusing to place a naked entry. Place the entry first, then a standalone STP/LMT protective order.',
+      }
+    }
     // TWS requires exchange and currency on the contract. Upstream layers
     // (staging, AI tools) typically only populate symbol + secType.
     // Default to SMART routing. Currency defaults to USD — non-USD markets
@@ -290,7 +305,9 @@ export class IbkrBroker implements IBroker {
       buyingPower: new Decimal(download.values.get('BuyingPower') ?? '0').toString(),
       initMarginReq: new Decimal(download.values.get('InitMarginReq') ?? '0').toString(),
       maintMarginReq: new Decimal(download.values.get('MaintMarginReq') ?? '0').toString(),
-      dayTradesRemaining: parseInt(download.values.get('DayTradesRemaining') ?? '0', 10),
+      ...(download.values.has('DayTradesRemaining')
+        ? { dayTradesRemaining: parseInt(download.values.get('DayTradesRemaining')!, 10) }
+        : {}),
     }
   }
 
@@ -320,6 +337,17 @@ export class IbkrBroker implements IBroker {
     return allOrders
       .filter(o => orderIds.includes(String(o.order.orderId)))
       .map(o => this.enrichWithFillData(o))
+  }
+
+  /**
+   * All open orders placed through this client — external-order observation
+   * + listing-driven sync surface. NOTE: reqOpenOrders only returns THIS
+   * clientId's orders; manual TWS-UI orders need reqAllOpenOrders + permId
+   * identity (deferred — tracked in Linear).
+   */
+  async getOpenOrders(): Promise<OpenOrder[]> {
+    const allOrders = await this.bridge.requestOpenOrders()
+    return allOrders.map(o => this.enrichWithFillData(o))
   }
 
   async getOrder(orderId: string): Promise<OpenOrder | null> {
@@ -356,9 +384,28 @@ export class IbkrBroker implements IBroker {
    * Each call briefly occupies one TWS market data line (limit ~100),
    * auto-released after tickSnapshotEnd.
    */
+  /** conId → resolved full contract, so by-conId quotes pay reqContractDetails once. */
+  private readonly conIdContracts = new Map<number, Contract>()
+
   async getQuote(contract: Contract): Promise<Quote> {
     if (!contract.exchange) contract.exchange = 'SMART'
     if (!contract.currency) contract.currency = 'USD'
+
+    // TWS rejects reqMktData on a bare conId (error 321: symbol/localSymbol/
+    // secId required) even though the wire carries conId — resolution by
+    // conId is only honoured via reqContractDetails. Enrich once and cache.
+    if (contract.conId && !contract.symbol && !contract.localSymbol) {
+      let full = this.conIdContracts.get(contract.conId)
+      if (!full) {
+        const details = await this.getContractDetails(contract)
+        if (!details?.contract) {
+          throw new BrokerError('EXCHANGE', `conId ${contract.conId} did not resolve to a contract`)
+        }
+        full = details.contract
+        this.conIdContracts.set(contract.conId, full)
+      }
+      contract = full
+    }
 
     const reqId = this.bridge.allocReqId()
     const promise = this.bridge.requestSnapshot(reqId)
