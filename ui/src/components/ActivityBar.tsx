@@ -5,6 +5,7 @@ import { findSectionForActivity } from '../sections'
 import { useWorkspace } from '../tabs/store'
 import type { ActivitySection, ViewSpec } from '../tabs/types'
 import { useUnreadInboxCount } from '../live/inbox-read'
+import { usePendingPushCount } from '../live/trading-push'
 import { useActivityBarCollapse } from '../live/activity-bar-collapse'
 import { useTranslation } from 'react-i18next'
 
@@ -89,12 +90,13 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   // Top — primary nav, always visible (no header, not collapsible).
-  // Mental model: Workspace is the atom for all work units. Chat is
-  // the high-frequency subset's shortcut — chat-template workspaces
-  // got their own top-level entry because that flow is common enough
-  // to warrant direct access. Workspaces (the all-templates index)
-  // sits alongside; the two aren't redundant: Workspaces = whole set,
-  // Chat = chat-shape subset shortcut.
+  // Mental model: Chat (Ask Alice) is the everyday entry — for most
+  // sessions the chat-template workspace is all you need, so it sits
+  // high. Workspaces (the all-templates index) is the power-user
+  // surface for hands-on session management; the two aren't redundant
+  // (Workspaces = whole set, Chat = chat-shape subset shortcut), but
+  // because day-to-day work rarely leaves Ask Alice, Workspaces sits
+  // at the bottom of this group rather than alongside Chat.
   //
   // Market / News are operational tools that work but aren't load-
   // bearing — they live here because they don't need lifecycle
@@ -105,9 +107,9 @@ const NAV_SECTIONS: NavSection[] = [
       { page: 'inbox',      labelKey: 'nav.item.inbox',      icon: Inbox, defaultTab: { kind: 'inbox', params: {} } },
       { page: 'tracked',    labelKey: 'nav.item.tracked',    icon: Telescope, defaultTab: { kind: 'tracked', params: {} } },
       { page: 'chat',       labelKey: 'nav.item.chat',       icon: MessageSquare, defaultTab: { kind: 'chat-landing', params: {} } },
-      { page: 'workspaces', labelKey: 'nav.item.workspaces', icon: TerminalSquare },
       { page: 'market',     labelKey: 'nav.item.market',     icon: BarChart3 },
       { page: 'news',       labelKey: 'nav.item.news',       icon: Newspaper, defaultTab: { kind: 'news', params: {} } },
+      { page: 'workspaces', labelKey: 'nav.item.workspaces', icon: TerminalSquare },
     ],
   },
   // Beta — functional but not yet dependable. Two distinct reasons
@@ -163,6 +165,7 @@ export function ActivityBar({ open, onClose, onItemActivated }: ActivityBarProps
   const setSidebar = useWorkspace((state) => state.setSidebar)
   const openOrFocus = useWorkspace((state) => state.openOrFocus)
   const unreadInbox = useUnreadInboxCount()
+  const pendingPush = usePendingPushCount()
   const collapsedSections = useActivityBarCollapse((s) => s.collapsedSections)
   const setCollapsed = useActivityBarCollapse((s) => s.setCollapsed)
 
@@ -291,6 +294,14 @@ export function ActivityBar({ open, onClose, onItemActivated }: ActivityBarProps
                               className="shrink-0 min-w-[18px] h-[18px] px-1.5 rounded-full bg-red text-[10px] font-semibold text-white tabular-nums flex items-center justify-center"
                             >
                               {unreadInbox > 99 ? '99+' : unreadInbox}
+                            </span>
+                          )}
+                          {item.page === 'trading-as-git' && pendingPush > 0 && (
+                            <span
+                              aria-label={t('nav.pendingPush', { count: pendingPush })}
+                              className="shrink-0 min-w-[18px] h-[18px] px-1.5 rounded-full bg-red text-[10px] font-semibold text-white tabular-nums flex items-center justify-center"
+                            >
+                              {pendingPush > 99 ? '99+' : pendingPush}
                             </span>
                           )}
                         </button>

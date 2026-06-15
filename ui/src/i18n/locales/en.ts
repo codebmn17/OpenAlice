@@ -34,6 +34,7 @@ export const en = {
     betaDescription:
       "Functional but not yet dependable. Trading-as-Git and Portfolio surface cross-broker unified state whose underlying abstraction is still being settled — try them, but don't depend on schema or UX as stable yet. Automation runs, but its trigger chain isn't closed in the current Harness architecture, so it can't fire end-to-end until Harness scheduling lands. Broker connection setup lives in Settings → Trading.",
     unread: '{{count}} unread',
+    pendingPush: '{{count}} pending to push',
     about: 'About {{label}}',
   },
   settings: {
