@@ -142,7 +142,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { page: 'trading-as-git', labelKey: 'nav.item.tradingAsGit', icon: GitBranch },
       { page: 'portfolio',      labelKey: 'nav.item.portfolio',    icon: LineChart, defaultTab: { kind: 'portfolio', params: {} } },
-      { page: 'automation',     labelKey: 'nav.item.automation',   icon: Zap, defaultTab: { kind: 'automation', params: { section: 'flow' } } },
+      { page: 'automation',     labelKey: 'nav.item.automation',   icon: Zap, defaultTab: { kind: 'automation', params: { section: 'schedules' } } },
     ],
   },
   {

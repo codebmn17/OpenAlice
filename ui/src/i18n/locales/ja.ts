@@ -252,9 +252,11 @@ export const ja: Resources = {
     noAccountsYet: 'アカウントがまだありません。設定 → 取引 で追加してください。',
   },
   automation: {
+    schedules: 'スケジュール',
     runs: '実行',
+    api: 'API',
+    legacy: 'レガシー',
     flow: 'フロー',
-    cronJobs: 'Cron ジョブ',
     webhook: 'Webhook',
   },
   news: {

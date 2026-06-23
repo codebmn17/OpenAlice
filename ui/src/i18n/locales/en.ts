@@ -263,9 +263,11 @@ export const en = {
     noAccountsYet: 'No accounts yet. Add one in Settings → Trading.',
   },
   automation: {
+    schedules: 'Schedules',
     runs: 'Runs',
+    api: 'API',
+    legacy: 'Legacy',
     flow: 'Flow',
-    cronJobs: 'Cron Jobs',
     webhook: 'Webhook',
   },
   news: {

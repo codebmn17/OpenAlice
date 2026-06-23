@@ -252,9 +252,11 @@ export const zh: Resources = {
     noAccountsYet: '还没有账户。在 设置 → 交易 中添加。',
   },
   automation: {
+    schedules: '定时',
     runs: '运行',
+    api: 'API',
+    legacy: '旧版',
     flow: '流程',
-    cronJobs: 'Cron 任务',
     webhook: 'Webhook',
   },
   news: {

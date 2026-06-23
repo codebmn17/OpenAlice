@@ -260,9 +260,11 @@ export const zhHant: Resources = {
     noAccountsYet: '尚無帳戶。請在 設定 → 交易 中新增。',
   },
   automation: {
+    schedules: '定時',
     runs: '運行',
+    api: 'API',
+    legacy: '舊版',
     flow: '流程',
-    cronJobs: 'Cron 任務',
     webhook: 'Webhook',
   },
   news: {

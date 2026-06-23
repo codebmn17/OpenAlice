@@ -24,6 +24,14 @@ import { loadConfig, type ServerConfig } from './config.js';
 import { logger as launcherLogger } from './logger.js';
 import { runHeadlessProbe, type HeadlessProbeResult } from './probe.js';
 import { runHeadlessTask, type HeadlessTaskResult } from './headless-task.js';
+import { ScheduleMarkerStore } from './schedule/marker-store.js';
+import { ScheduleScanner, DEFAULT_INTERVAL_MS } from './schedule/scanner.js';
+import {
+  readScheduleDeclaration,
+  snapshotTask,
+  type ScheduleSnapshot,
+  type ScheduleSnapshotWorkspace,
+} from './schedule/declaration.js';
 import { HeadlessTaskRegistry, headlessLogPaths } from './headless-task-registry.js';
 
 /** Max concurrent in-flight headless tasks — backstop against unbounded spawn. */
@@ -133,6 +141,9 @@ export interface WorkspaceService {
     prompt: string,
     timeoutMs: number,
   ): Promise<{ taskId: string }>;
+  /** Read-only snapshot of every workspace's declared `.alice/schedule.json` +
+   *  each task's last-fired marker and computed next-due. Powers GET /api/schedule. */
+  scheduleSnapshot(): Promise<ScheduleSnapshot>;
   /** The headless-task management plane (cross-workspace; powers GET /api/headless). */
   headlessTasks: HeadlessTaskRegistry;
   /** Where dispatched tasks' full stdout/stderr logs land (read by the output route). */
@@ -470,6 +481,60 @@ export async function createWorkspaceService(opts: CreateWorkspaceServiceOptions
     return { taskId: rec.taskId };
   };
 
+  // ── Workspace self-scheduling. Scan each workspace's own `.alice/schedule.json`
+  // and fire due tasks as headless runs through the SAME dispatch primitive. The
+  // scanner owns its own tick (infra periodicity, NOT a scheduled task) and
+  // persists only a last-fired marker — never the schedule itself, which lives
+  // solely in the workspace's file.
+  const scheduleMarkers = await ScheduleMarkerStore.load(
+    join(config.launcherRoot, 'state', 'schedule-markers.json'),
+    launcherLogger.child({ scope: 'schedule-markers' }),
+  );
+  const scheduleScanner = new ScheduleScanner({
+    registry,
+    resolveAdapter,
+    dispatch: dispatchHeadlessTaskMethod,
+    markers: scheduleMarkers,
+    logger: launcherLogger.child({ scope: 'schedule' }),
+  });
+  scheduleScanner.start();
+
+  // Read-only aggregation for the Schedules dashboard (GET /api/schedule).
+  // Walks each workspace's live declaration + the scanner's marker; the route
+  // layer stays a thin adapter and the marker store stays private.
+  const scheduleSnapshot = async (): Promise<ScheduleSnapshot> => {
+    // Warm path: the scanner rebuilds this every tick (it already reads every
+    // declaration), so serving its cache is O(1) — no per-request disk walk.
+    const cached = scheduleScanner.snapshot();
+    if (cached) return cached;
+    // Cold path: only before the scanner's first tick (delayed to stay
+    // test-safe). One live read-only build — no firing.
+    const nowMs = Date.now();
+    const workspaces = await Promise.all(
+      registry.list().map(async (ws): Promise<ScheduleSnapshotWorkspace> => {
+        const res = await readScheduleDeclaration(ws.dir);
+        if (!res.ok) {
+          return {
+            wsId: ws.id,
+            tag: ws.tag,
+            status: res.reason,
+            ...(res.reason === 'invalid' ? { error: res.error } : {}),
+            tasks: [],
+          };
+        }
+        return {
+          wsId: ws.id,
+          tag: ws.tag,
+          status: 'ok',
+          tasks: res.tasks.map((t) =>
+            snapshotTask(t, scheduleMarkers.get(ws.id, t.id) ?? null, nowMs, DEFAULT_INTERVAL_MS),
+          ),
+        };
+      }),
+    );
+    return { workspaces };
+  };
+
   const pool = new SessionPool(
     (wsId, ctx) => {
       const ws = registry.get(wsId);
@@ -628,6 +693,7 @@ export async function createWorkspaceService(opts: CreateWorkspaceServiceOptions
     if (shuttingDown) return;
     shuttingDown = true;
     launcherLogger.info('workspaces.dispose', { reason, activeSessions: pool.size() });
+    scheduleScanner.stop();
     pool.disposeAll('plugin shutdown');
     transcriptWatcher.disposeAll();
   };
@@ -649,6 +715,7 @@ export async function createWorkspaceService(opts: CreateWorkspaceServiceOptions
     runHeadlessProbe: runHeadlessProbeMethod,
     runHeadlessTask: runHeadlessTaskMethod,
     dispatchHeadlessTask: dispatchHeadlessTaskMethod,
+    scheduleSnapshot,
     headlessTasks,
     headlessLogsDir,
     isShuttingDown: () => shuttingDown,
