@@ -63,6 +63,7 @@ import { SessionPool, type SessionFactoryContext } from './session-pool.js';
 import { SessionRegistry, type SessionRecord } from './session-registry.js';
 import { buildSpawnEnv } from './spawn-env.js';
 import { readReadmeVersion, TemplateRegistry } from './template-registry.js';
+import { readWorkspaceMetadata } from './workspace-metadata.js';
 import { TranscriptWatcher } from './transcript-watcher.js';
 import { detectBinary, type AgentAvailability } from './agent-detect.js';
 import { resolveLaunchCommand } from './win-command.js';
@@ -817,6 +818,7 @@ export async function createWorkspaceService(opts: CreateWorkspaceServiceOptions
   let shuttingDown = false;
 
   const publicMeta = async (w: WorkspaceMeta): Promise<unknown> => {
+    const metadata = await readWorkspaceMetadata(w.dir);
     const live = pool.liveSessionsFor(w.id);
     await sessionRegistry.ensureLoaded(w.id).catch(() => undefined);
     const liveById = new Map(live.map((l) => [l.id, l]));
@@ -871,6 +873,8 @@ export async function createWorkspaceService(opts: CreateWorkspaceServiceOptions
     }
     return {
       ...w,
+      ...(metadata.ok ? metadata.metadata : {}),
+      ...(!metadata.ok && metadata.reason === 'invalid' ? { metadataError: metadata.error } : {}),
       sessions,
       agentOverride,
       ...(currentVersion !== undefined ? { currentVersion } : {}),

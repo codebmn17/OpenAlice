@@ -40,6 +40,7 @@ import {
   quickChat as apiQuickChat,
   resumeSession as apiResumeSession,
   spawnSession,
+  updateWorkspaceMetadata,
   type AgentInfo,
   type SessionRecord,
   type TemplateInfo,
@@ -89,6 +90,8 @@ interface WorkspacesContextValue {
   requestDeleteSession(wsId: string, sessionId: string): void
   /** Open the per-workspace AI-provider config modal for `wsId`. */
   openAgentConfig(wsId: string): void
+  /** Write workspace-owned display metadata (`.alice/workspace.json`). */
+  renameWorkspace(wsId: string, displayName: string): Promise<void>
 }
 
 const WorkspacesContext = createContext<WorkspacesContextValue | null>(null)
@@ -274,6 +277,15 @@ export function WorkspacesProvider({ children }: { children: ReactNode }) {
     [refresh, openOrFocus],
   )
 
+  const renameWorkspace = useCallback(
+    async (wsId: string, displayName: string): Promise<void> => {
+      const updated = await updateWorkspaceMetadata(wsId, { displayName })
+      setWorkspaces((prev) => prev.map((w) => (w.id === wsId ? updated : w)))
+      void refresh()
+    },
+    [refresh],
+  )
+
   const deleteSession = useCallback(
     async (wsId: string, sessionId: string): Promise<void> => {
       // Optimistic remove.
@@ -326,6 +338,7 @@ export function WorkspacesProvider({ children }: { children: ReactNode }) {
         resumeSession,
         requestDeleteSession,
         openAgentConfig: (wsId: string) => setConfiguringWsId(wsId),
+        renameWorkspace,
       }}
     >
       {children}

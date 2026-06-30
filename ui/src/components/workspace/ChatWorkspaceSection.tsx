@@ -25,6 +25,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { deleteWorkspace, type SessionRecord, type Workspace } from './api'
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog'
 import { SessionRow } from './Sidebar'
+import { workspaceDisplayName, workspaceDisplayTitle } from './display'
 
 const CHAT_TEMPLATE = 'chat'
 
@@ -34,6 +35,7 @@ const DAILY_TAG_RE = /^chat-[a-z]{3}\d{1,2}$/
 /** Friendly label for a chat workspace: Today / Yesterday / "Jun 14" for daily
  *  buckets, the raw tag for user-named workspaces. */
 function chatLabel(w: Workspace, todayLabel: string, yesterdayLabel: string): string {
+  if (w.displayName?.trim()) return workspaceDisplayName(w)
   if (!DAILY_TAG_RE.test(w.tag)) return w.tag
   const created = new Date(w.createdAt)
   if (Number.isNaN(created.getTime())) return w.tag
@@ -290,7 +292,7 @@ function ChatWorkspaceRow(props: ChatWorkspaceRowProps): ReactElement {
           className="flex-1 min-w-0 flex items-center gap-2 text-left"
         >
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusClass}`} aria-hidden="true" />
-          <span className="truncate font-medium" title={w.tag}>
+          <span className="truncate font-medium" title={workspaceDisplayTitle(w)}>
             {props.label}
           </span>
           {w.sessions.length > 0 && (

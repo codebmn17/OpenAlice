@@ -24,6 +24,7 @@ const DEFAULT_WIRE_BY_AGENT: Record<string, WireShape> = {
 import { listDir, PathTraversal, readWorkspaceFile } from '../../workspaces/file-service.js';
 import { gitLog, gitStatus } from '../../workspaces/git-service.js';
 import { logger as launcherLogger } from '../../workspaces/logger.js';
+import { readWorkspaceMetadata, workspaceMetadataSchema, writeWorkspaceMetadata } from '../../workspaces/workspace-metadata.js';
 import type { SessionRecord } from '../../workspaces/session-registry.js';
 import type { WorkspaceMeta } from '../../workspaces/workspace-registry.js';
 import { HeadlessCapacityError, resumeFromRecord, type SessionFactoryContext, type WorkspaceService } from '../../workspaces/service.js';
@@ -437,6 +438,44 @@ export function createWorkspaceRoutes(svc: WorkspaceService): Hono {
       }, status);
     }
     return c.json({ workspace: await svc.publicMeta(result.workspace) }, 201);
+  });
+
+  app.patch('/:id/metadata', async (c) => {
+    const id = c.req.param('id');
+    if (!validId(id)) return c.json({ error: 'not_found' }, 404);
+    const meta = svc.registry.get(id);
+    if (!meta) return c.json({ error: 'not_found' }, 404);
+
+    const body = await safeJson(c);
+    const fields = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+    const current = await readWorkspaceMetadata(meta.dir);
+    const nextObj: Record<string, unknown> = current.ok ? { ...current.metadata } : {};
+    if ('displayName' in fields) {
+      const v = fields['displayName'];
+      if (v === null) delete nextObj['displayName'];
+      else nextObj['displayName'] = v;
+    }
+    if ('description' in fields) {
+      const v = fields['description'];
+      if (v === null) delete nextObj['description'];
+      else nextObj['description'] = v;
+    }
+    const next = workspaceMetadataSchema.safeParse(nextObj);
+    if (!next.success) {
+      return c.json({
+        error: 'invalid_metadata',
+        message: next.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+      }, 400);
+    }
+    try {
+      await writeWorkspaceMetadata(meta.dir, next.data);
+      launcherLogger.info('workspace.metadata_saved', { id });
+      return c.json({ workspace: await svc.publicMeta(meta) });
+    } catch (err) {
+      if (err instanceof PathTraversal) return c.json({ error: 'invalid_path' }, 400);
+      launcherLogger.warn('workspace.metadata_write_failed', { id, err });
+      return c.json({ error: 'write_failed', message: (err as Error).message }, 500);
+    }
   });
 
   // ── single workspace (DELETE + git/files sub-resources) ──────────────────

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime } from '../../lib/intl';
 import type { ReactElement } from 'react';
-import { Bot, ChevronDown, ChevronRight, Code2, Cpu, LayoutGrid, Library, Play, Plus, Settings as SettingsIcon, Sparkles, Square, Terminal, X, type LucideIcon } from 'lucide-react';
+import { Bot, ChevronDown, ChevronRight, Code2, Cpu, LayoutGrid, Library, Pencil, Play, Plus, Settings as SettingsIcon, Sparkles, Square, Terminal, X, type LucideIcon } from 'lucide-react';
 
 import { headlessApi, type HeadlessTaskRecord } from '../../api/headless';
 import {
@@ -13,6 +13,7 @@ import {
 } from './api';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
 import { Skeleton } from '../StateViews';
+import { workspaceDisplayName, workspaceDisplayTitle } from './display';
 
 /**
  * Workspace launcher sidebar.
@@ -55,6 +56,7 @@ export interface SidebarProps {
   readonly onResumeSession: (wsId: string, sessionId: string) => void;
   readonly onDeleteSession: (wsId: string, sessionId: string) => void;
   readonly onChanged: () => void;
+  readonly onRenameWorkspace?: (wsId: string, displayName: string) => void;
   /** Optional: open the per-workspace AI-provider config modal. */
   readonly onConfigureWorkspace?: (wsId: string) => void;
   /** Open the Workspaces Overview dashboard tab (card view of all workspaces). */
@@ -185,6 +187,7 @@ export function Sidebar(props: SidebarProps): ReactElement {
             onResumeSession={props.onResumeSession}
             onDeleteSession={props.onDeleteSession}
             onDelete={onDelete}
+            onRenameWorkspace={props.onRenameWorkspace}
             onConfigureWorkspace={props.onConfigureWorkspace}
           />
         ))}
@@ -233,6 +236,7 @@ export interface WorkspaceRowProps {
   readonly onResumeSession: (wsId: string, sessionId: string) => void;
   readonly onDeleteSession: (wsId: string, sessionId: string) => void;
   readonly onDelete: (id: string) => Promise<void>;
+  readonly onRenameWorkspace?: (wsId: string, displayName: string) => void;
   readonly onConfigureWorkspace?: (wsId: string) => void;
 }
 
@@ -278,6 +282,7 @@ function rowAction(danger = false): string {
 
 export function WorkspaceRow(props: WorkspaceRowProps): ReactElement {
   const w = props.workspace;
+  const label = workspaceDisplayName(w);
   const isSelected = props.selection?.wsId === w.id && props.selection.sessionId === null;
   const hasRunning = w.sessions.some((s) => s.state === 'running');
   const runningCount = w.sessions.filter((s) => s.state === 'running').length;
@@ -341,16 +346,32 @@ export function WorkspaceRow(props: WorkspaceRowProps): ReactElement {
         <button
           type="button"
           onClick={() => props.onSelectWorkspace(w.id)}
-          title={w.tag}
+          title={workspaceDisplayTitle(w)}
           className="flex-1 min-w-0 flex items-center gap-2 text-left"
         >
           <span
             className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusClass}`}
             title={hasRunning ? `${runningCount} running` : 'idle'}
           />
-          <span className="truncate font-medium">{w.tag}</span>
+          <span className="truncate font-medium">{label}</span>
           <span className="text-[10px] text-text-muted/50 tabular-nums shrink-0">{formatRelativeTime(w.createdAt)}</span>
         </button>
+        {props.onRenameWorkspace && (
+          <button
+            type="button"
+            className={`${rowAction()} opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}
+            title="rename workspace"
+            onClick={() => {
+              const next = window.prompt('Workspace display name', label);
+              if (next === null) return;
+              const trimmed = next.trim();
+              if (trimmed.length === 0 || trimmed === label) return;
+              props.onRenameWorkspace?.(w.id, trimmed);
+            }}
+          >
+            <Pencil size={12} strokeWidth={2} />
+          </button>
+        )}
         {w.agents.length > 0 && (
           <div className="relative shrink-0">
             <button

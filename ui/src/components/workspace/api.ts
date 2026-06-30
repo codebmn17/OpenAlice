@@ -9,6 +9,12 @@ import type { WireShape } from '../../api'
 export interface Workspace {
   readonly id: string;
   readonly tag: string;
+  /** Workspace-owned display label from `.alice/workspace.json`; falls back to `tag`. */
+  readonly displayName?: string;
+  /** Workspace-owned short description from `.alice/workspace.json`. */
+  readonly description?: string;
+  /** Validation/read error for `.alice/workspace.json`, when present. */
+  readonly metadataError?: string;
   readonly dir: string;
   readonly createdAt: string;
   readonly template?: string;
@@ -337,6 +343,23 @@ export async function deleteWorkspace(id: string): Promise<boolean> {
     method: 'DELETE',
   });
   return res.ok;
+}
+
+export async function updateWorkspaceMetadata(
+  id: string,
+  metadata: { displayName?: string; description?: string },
+): Promise<Workspace> {
+  const res = await fetch(`/api/workspaces/${encodeURIComponent(id)}/metadata`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(metadata),
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '');
+    throw new Error(`update workspace metadata failed: ${res.status} ${msg}`);
+  }
+  const body = (await res.json()) as { workspace: Workspace };
+  return body.workspace;
 }
 
 /**
