@@ -340,7 +340,7 @@ export function ChatLandingPage({ spec }: { spec: { params: { targetWsId?: strin
                   className="inline-flex items-center gap-1.5 text-[11px] text-text-muted bg-bg-tertiary px-2 py-1 rounded-md transition-colors hover:text-text disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {SelectedIcon ? <SelectedIcon className="w-3 h-3" /> : null}
-                  {selectedInfo?.displayName ?? t('chatLanding.defaultAgent')}
+                  {selectedInfo?.displayName ?? t('chatLanding.selectAgent')}
                   <ChevronDown className="w-3 h-3 opacity-60" />
                 </button>
                 {agentMenuOpen && targetCliAgents.length > 0 && (
