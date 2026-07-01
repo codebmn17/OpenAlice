@@ -147,13 +147,10 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
     term.loadAddon(new WebLinksAddon());
     term.open(container);
 
-    // WebGL by default; degrades to the DOM renderer on addon failure /
-    // context loss, or when the `openalice.terminal.renderer` escape hatch
-    // forces 'dom' (GPU-pipeline corruption can't be auto-detected — see
-    // renderer.ts).
-    const webgl = attachWebglRenderer(term);
-
-    safeFit(fit);
+    // WebGL is attached after the first real layout pass. xterm can briefly
+    // expose a viewport before its render dimensions exist; fitting or writing
+    // in that window trips Viewport.syncScrollArea's dimensions getter.
+    let webgl: ReturnType<typeof attachWebglRenderer> = null;
     let lastCols = term.cols;
     let lastRows = term.rows;
 
@@ -163,12 +160,14 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
     // was wrong: it would correctly skip bytes the xterm already had, but
     // since the xterm was newly mounted there were none to skip — the user
     // ended up with a blank pane after switching workspaces.)
-    const params = new URLSearchParams({
-      session: sessionId,
-      cols: String(lastCols),
-      rows: String(lastRows),
-    });
-    const url = `${wsUrl ?? defaultWsUrl()}?${params.toString()}`;
+    const currentUrl = (): string => {
+      const params = new URLSearchParams({
+        session: sessionId,
+        cols: String(lastCols),
+        rows: String(lastRows),
+      });
+      return `${wsUrl ?? defaultWsUrl()}?${params.toString()}`;
+    };
 
     // The live socket is swapped out on every (re)connect; senders read it at
     // call time so xterm's stdin/binary subs survive a reconnect untouched.
@@ -177,6 +176,9 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
     let attempts = 0;
     let hasConnectedOnce = false;
     let teardown = false;
+    let resizeObserver: ResizeObserver | null = null;
+    let initTimer: ReturnType<typeof setTimeout> | undefined;
+    let pendingWriteFrame: ReturnType<typeof requestAnimationFrame> | undefined;
 
     const sendControl = (msg: ClientControlMessage): void => {
       const ws = activeWs;
@@ -201,6 +203,31 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
       logInput('stdin', data);
       const ws = activeWs;
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(encoder.encode(data));
+    };
+
+    const safeFocus = (): void => {
+      try {
+        term.focus();
+      } catch {
+        // xterm may still be completing renderer setup; focus can wait.
+      }
+    };
+
+    const writeToTerm = (data: Uint8Array): void => {
+      try {
+        term.write(data);
+      } catch (err) {
+        if (teardown || pendingWriteFrame !== undefined) return;
+        pendingWriteFrame = requestAnimationFrame(() => {
+          pendingWriteFrame = undefined;
+          if (teardown) return;
+          try {
+            term.write(data);
+          } catch (retryErr) {
+            console.warn('[openalice:terminal] dropped terminal frame after xterm write failure', retryErr ?? err);
+          }
+        });
+      }
     };
 
     let suppressNextKeypress = false;
@@ -254,10 +281,6 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
       }
     };
 
-    const ro = new ResizeObserver(handleResize);
-    ro.observe(container);
-    window.addEventListener('resize', handleResize);
-
     // Backoff schedule for transient drops (vite ws-proxy ECONNRESET, server
     // restart, sleep/wake). Cap the delay and the attempt count so a genuinely
     // dead backend stops the loop instead of retrying forever.
@@ -279,7 +302,7 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
 
     function connect(): void {
       if (teardown) return;
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(currentUrl());
       ws.binaryType = 'arraybuffer';
       activeWs = ws;
       setStatus(hasConnectedOnce ? 'reconnecting' : 'connecting');
@@ -293,11 +316,12 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
         if (hasConnectedOnce) term.reset();
         hasConnectedOnce = true;
         setStatus('connected');
-        term.focus();
+        safeFocus();
         handleResize();
       });
 
       ws.addEventListener('message', (ev) => {
+        if (teardown) return;
         const data: unknown = ev.data;
         if (typeof data === 'string') {
           const msg = parseServerControl(data);
@@ -325,7 +349,7 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
           return;
         }
         if (data instanceof ArrayBuffer) {
-          term.write(new Uint8Array(data));
+          writeToTerm(new Uint8Array(data));
         }
       });
 
@@ -364,15 +388,39 @@ export function TerminalView(props: TerminalViewProps): ReactElement {
       ws.send(bytes);
     });
 
-    connect();
+    let initTries = 0;
+    const init = (): void => {
+      if (teardown) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      if ((width < 50 || height < 30) && initTries < 40) {
+        initTries += 1;
+        initTimer = setTimeout(init, 25);
+        return;
+      }
+
+      // WebGL by default; degrades to the DOM renderer on addon failure /
+      // context loss, or when the `openalice.terminal.renderer` escape hatch
+      // forces 'dom' (GPU-pipeline corruption can't be auto-detected — see
+      // renderer.ts).
+      webgl = attachWebglRenderer(term);
+      handleResize();
+      resizeObserver = new ResizeObserver(handleResize);
+      resizeObserver.observe(container);
+      window.addEventListener('resize', handleResize);
+      connect();
+    };
+    initTimer = setTimeout(init, 0);
 
     return () => {
       teardown = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (initTimer) clearTimeout(initTimer);
+      if (pendingWriteFrame !== undefined) cancelAnimationFrame(pendingWriteFrame);
       stdinSub.dispose();
       binarySub.dispose();
       clearSuppressNextKeypress();
-      ro.disconnect();
+      resizeObserver?.disconnect();
       container.removeEventListener('keypress', suppressMappedKeypress, true);
       window.removeEventListener('resize', handleResize);
       try {
