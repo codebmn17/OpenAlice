@@ -163,11 +163,14 @@ app.whenReady().then(async () => {
   const utaEntry = resolve(repoRoot, 'services', 'uta', 'dist', 'uta.js')
 
   // Two homes — user data vs app resources. See src/core/paths.ts for why
-  // they're split. User data lives at ~/.openalice in BOTH branches — one
-  // store shared with `pnpm dev` and bare `pnpm start`, so accounts are
-  // configured once, not per topology. App resources stay lifecycle-owned:
+  // they're split. User data lives at ~/.openalice by default in BOTH branches
+  // — one store shared with `pnpm dev` and bare `pnpm start`, so accounts are
+  // configured once, not per topology. An explicit OPENALICE_HOME is honored
+  // for local packaged smoke tests, where we need app.isPackaged=true without
+  // touching the user's real store. App resources stay lifecycle-owned:
   // .app/Contents/Resources when packaged, the repo in dev.
-  const userDataHome = join(homedir(), '.openalice')
+  const explicitUserDataHome = process.env['OPENALICE_HOME']?.trim()
+  const userDataHome = explicitUserDataHome || join(homedir(), '.openalice')
   const homeEnv = app.isPackaged
     ? {
         OPENALICE_HOME: userDataHome,
@@ -187,7 +190,7 @@ app.whenReady().then(async () => {
   // backend boots (it would run migrations against an empty store). On
   // failure: surface and quit — booting beside the user's real data would
   // fork their trading history.
-  if (app.isPackaged) {
+  if (app.isPackaged && !explicitUserDataHome) {
     try {
       await relocateLegacyData(app.getPath('userData'), userDataHome)
     } catch (err) {

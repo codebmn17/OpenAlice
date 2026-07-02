@@ -418,7 +418,7 @@ function CredentialModal({ mode, cred, presets, onClose, onSaved }: {
   const [apiKey, setApiKey] = useState(cred?.apiKey ?? '')
   const [presetQuery, setPresetQuery] = useState('')
   const [showKey, setShowKey] = useState(false)
-  const [model, setModel] = useState('')
+  const [model, setModel] = useState(cred?.lastModel ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const gate = useTestGate()
@@ -489,6 +489,7 @@ function CredentialModal({ mode, cred, presets, onClose, onSaved }: {
           vendor, wires,
           ...(isCustom ? { label: customLabel } : {}),
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+          ...(model.trim() ? { lastModel: model.trim() } : {}),
         })
       } else {
         if (!apiKey.trim()) { setError('API key is required'); setSaving(false); return }
@@ -497,6 +498,7 @@ function CredentialModal({ mode, cred, presets, onClose, onSaved }: {
           wires,
           apiKey: apiKey.trim(),
           ...(isCustom ? { label: customLabel } : {}),
+          ...(model.trim() ? { lastModel: model.trim() } : {}),
         })
       }
       await onSaved()
@@ -633,7 +635,7 @@ function CredentialModal({ mode, cred, presets, onClose, onSaved }: {
                 </div>
               </Field>
 
-              <Field label="Test model" description="Used only to verify the key — not stored on the credential (the model is chosen per workspace).">
+              <Field label="Test model" description="Used to verify the key and remembered as the default for quick-chat injection. Workspaces can still choose a different model.">
                 <ModelCombobox value={model} suggestions={models} onChange={setModel} />
               </Field>
 

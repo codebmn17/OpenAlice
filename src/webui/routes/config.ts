@@ -85,11 +85,12 @@ export function createConfigRoutes(opts?: ConfigRouteOpts) {
   /** POST /credentials — add an api-key credential (deduped by key). Returns slug. */
   app.post('/credentials', async (c) => {
     try {
-      const body = await c.req.json<{ vendor?: string; label?: string; wires?: unknown; apiKey?: string }>()
+      const body = await c.req.json<{ vendor?: string; label?: string; wires?: unknown; apiKey?: string; lastModel?: string }>()
       const apiKey = body.apiKey?.trim()
       if (!apiKey) return c.json({ error: 'apiKey is required' }, 400)
       const vendorParse = credentialVendorEnum.safeParse(body.vendor)
       const label = body.label?.trim()
+      const lastModel = body.lastModel?.trim()
       const wires = parseWires(body.wires)
       const cred: Credential = {
         vendor: vendorParse.success ? vendorParse.data : 'custom',
@@ -97,6 +98,7 @@ export function createConfigRoutes(opts?: ConfigRouteOpts) {
         authType: 'api-key',
         apiKey,
         ...(Object.keys(wires).length ? { wires } : {}),
+        ...(lastModel ? { lastModel } : {}),
       }
       const slug = await addCredential(cred)
       return c.json({ slug, vendor: cred.vendor }, 201)
@@ -109,11 +111,12 @@ export function createConfigRoutes(opts?: ConfigRouteOpts) {
   app.put('/credentials/:slug', async (c) => {
     try {
       const slug = c.req.param('slug')
-      const body = await c.req.json<{ vendor?: string; label?: string; wires?: unknown; apiKey?: string }>()
+      const body = await c.req.json<{ vendor?: string; label?: string; wires?: unknown; apiKey?: string; lastModel?: string }>()
       const existing = await resolveCredential(slug)
       const apiKey = body.apiKey?.trim() || existing.apiKey
       const vendorParse = credentialVendorEnum.safeParse(body.vendor)
       const label = body.label?.trim()
+      const lastModel = body.lastModel?.trim() || existing.lastModel
       const wires = parseWires(body.wires)
       const cred: Credential = {
         vendor: vendorParse.success ? vendorParse.data : existing.vendor,
@@ -121,6 +124,7 @@ export function createConfigRoutes(opts?: ConfigRouteOpts) {
         authType: 'api-key',
         ...(apiKey ? { apiKey } : {}),
         ...(Object.keys(wires).length ? { wires } : { ...(existing.wires ? { wires: existing.wires } : {}) }),
+        ...(lastModel ? { lastModel } : {}),
       }
       await writeCredential(slug, cred)
       return c.json({ slug })

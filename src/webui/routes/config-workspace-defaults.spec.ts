@@ -30,12 +30,25 @@ vi.mock('../../core/config.js', async () => {
     writeWorkspaceDefaultAgent: vi.fn(async (agent: string | null) => {
       defaultAgentStore = agent
     }),
+    addCredential: vi.fn(async (credential: Credential) => {
+      const slug = `${credential.vendor}-${Object.keys(credStore).length + 1}`
+      credStore[slug] = credential
+      return slug
+    }),
+    resolveCredential: vi.fn(async (slug: string) => {
+      const cred = credStore[slug]
+      if (!cred) throw new Error(`Unknown credential: "${slug}"`)
+      return cred
+    }),
+    writeCredential: vi.fn(async (slug: string, credential: Credential) => {
+      credStore[slug] = credential
+    }),
   }
 })
 
 import { createConfigRoutes } from './config.js'
 
-async function req(routes: ReturnType<typeof createConfigRoutes>, method: 'GET' | 'PUT', path: string, body?: unknown) {
+async function req(routes: ReturnType<typeof createConfigRoutes>, method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) {
   const init: RequestInit = { method }
   if (body !== undefined) {
     init.headers = { 'Content-Type': 'application/json' }
@@ -73,6 +86,25 @@ describe('GET /workspace-credential-defaults', () => {
     // opencode/pi speak chat|anthropic|responses → every key qualifies.
     expect(new Set(compat.opencode)).toEqual(new Set(['anthropic-1', 'openai-1', 'chat-1']))
     expect(new Set(compat.pi)).toEqual(new Set(['anthropic-1', 'openai-1', 'chat-1']))
+  })
+})
+
+describe('POST /credentials', () => {
+  it('stores lastModel so custom provider injection has a default model', async () => {
+    const routes = createConfigRoutes()
+
+    const { status, body } = await req(routes, 'POST', '/credentials', {
+      vendor: 'custom',
+      label: 'Gateway',
+      apiKey: 'sk-gw',
+      wires: { 'openai-chat': 'https://gw/v1' },
+      lastModel: 'longmao-chat',
+    })
+
+    expect(status).toBe(201)
+    const slug = body!.slug
+    expect(typeof slug).toBe('string')
+    expect(credStore[slug as string]).toMatchObject({ lastModel: 'longmao-chat' })
   })
 })
 
