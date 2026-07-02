@@ -30,7 +30,7 @@ export const zhHant: Resources = {
       system: '系統',
     },
     betaDescription:
-      '功能可用，但尚不穩定。Trading-as-Git 與投資組合呈現的是跨券商的統一狀態，其底層抽象仍在定型中——可以試用，但請勿依賴其 schema 或 UX 的穩定性。自動化能運行，但在目前的 Harness 架構下其觸發鏈尚未閉合，因此在 Harness 排程落地前無法端對端觸發。券商連線設定位於 設定 → 交易。',
+      '已可使用，但狀態模型與 UX 仍可能變動。券商連線在 設定 → 交易。',
     unread: '{{count}} 則未讀',
     pendingPush: '{{count}} 筆待推送',
     about: '關於{{label}}',

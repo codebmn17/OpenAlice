@@ -28,6 +28,11 @@ export const SIDEBAR_MIN_WIDTH = 200
 export const SIDEBAR_MAX_WIDTH = 420
 const FALLBACK_WIDTH = 260
 
+function normalizeSidebarWidth(px: unknown): number | null {
+  if (typeof px !== 'number' || !Number.isFinite(px)) return null
+  return Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.round(px)))
+}
+
 /** Tuned natural default width (px) per activity, from the content audit. */
 export const SIDEBAR_DEFAULT_WIDTH: Partial<Record<ActivitySection, number>> = {
   chat: 260,
@@ -57,12 +62,13 @@ export const useSidebarWidth = create<SidebarWidthState & SidebarWidthActions>()
     (set) => ({
       widths: {},
       setWidth: (activity, px) =>
-        set((s) => ({
-          widths: {
-            ...s.widths,
-            [activity]: Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.round(px))),
-          },
-        })),
+        set((s) => {
+          const next = { ...s.widths }
+          const width = normalizeSidebarWidth(px)
+          if (width == null) delete next[activity]
+          else next[activity] = width
+          return { widths: next }
+        }),
     }),
     { name: 'openalice.sidebar-width.v1', version: 1 },
   ),
@@ -74,5 +80,5 @@ export function resolveSidebarWidth(
   widths: Partial<Record<string, number>>,
 ): number {
   if (!activity) return FALLBACK_WIDTH
-  return widths[activity] ?? SIDEBAR_DEFAULT_WIDTH[activity] ?? FALLBACK_WIDTH
+  return normalizeSidebarWidth(widths[activity]) ?? SIDEBAR_DEFAULT_WIDTH[activity] ?? FALLBACK_WIDTH
 }

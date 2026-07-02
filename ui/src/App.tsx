@@ -223,7 +223,9 @@ function AppShell() {
                   // prev === undefined on mount; skip our own programmatic
                   // resizes — persist only genuine user drags, per activity.
                   if (prev === undefined || programmaticResize.current) return
-                  if (selectedSidebar) setSidebarWidth(selectedSidebar, size.inPixels)
+                  if (selectedSidebar && Number.isFinite(size.inPixels)) {
+                    setSidebarWidth(selectedSidebar, size.inPixels)
+                  }
                 }}
               >
                 <Sidebar

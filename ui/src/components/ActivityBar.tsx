@@ -127,14 +127,8 @@ const NAV_SECTIONS: NavSection[] = [
       { page: 'workspaces', labelKey: 'nav.item.workspaces', icon: TerminalSquare },
     ],
   },
-  // Beta — functional but not yet dependable. Cross-broker unification
-  // (UTA abstraction, FX/options/futures) is in active rearchitecture:
-  // Portfolio surfaces that state, Trading-as-Git is the operations side
-  // (pending broker writes). The data runs; the schema/UX underneath isn't
-  // settled. (Scheduled work now surfaces on the Issues board in the top group;
-  // Automation moved down to System as the headless-run / API / event-bus ops
-  // side.) Broker connection CRUD lives under
-  // Settings → Trading, not here — it's a config surface, not state/ops.
+  // Beta — useful trading surfaces whose cross-broker state model and UX are
+  // still settling. Broker connection CRUD lives under Settings → Trading.
   {
     sectionLabel: 'Beta',
     labelKey: 'nav.section.beta',
