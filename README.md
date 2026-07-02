@@ -226,10 +226,9 @@ The only requirement: the CLI binary has to be installed on the host running Ope
 
 ## Quick Start
 
-> **Heads up:** there's no native installer yet. To try OpenAlice today you
-> clone the repo and run it from source — this section is the contributor /
-> early-adopter path. A DMG (macOS) + Windows installer are in flight; once
-> they ship, the steps below collapse to "download, open, done."
+> **Heads up:** the source path is still the best early-adopter path. Desktop
+> builds exist for installer testing, but running from source gives you logs,
+> local code, and the shortest path to patch or report beta issues.
 
 ### 0. Tools you need
 
@@ -240,7 +239,8 @@ The only requirement: the CLI binary has to be installed on the host running Ope
 | **git** | Clone the repo | Usually already installed. If not: [git-scm.com](https://git-scm.com/) |
 | **Claude Code CLI** | The agent CLI that powers Workspace chats | [Install Claude Code](https://docs.anthropic.com/en/docs/claude-code), then run `claude` once to log in with your Claude Pro/Max subscription. **No API key needed.** |
 
-Windows additionally needs a POSIX shell — see [Windows](#windows) below.
+On Windows, read the short note below before choosing PowerShell, Git Bash, or
+WSL2.
 
 Sanity check:
 
@@ -305,8 +305,8 @@ If port 5173 is busy, Vite auto-picks 5174 (or higher) and prints the actual
 URL in the terminal — always trust the terminal output over the number in
 this README.
 
-You should see Alice's sidebar (Inbox / Workspaces / Chat / Market / News).
-Click **Chat** and start typing — no API keys, no config files to edit. It
+You should see Alice's sidebar (Ask Alice / Inbox / Workspaces / Market / News).
+Open **Ask Alice** and start typing — no API keys, no config files to edit. It
 uses your local Claude Code login.
 
 ### 4. When things go wrong
@@ -324,52 +324,29 @@ Still stuck → see [Getting Help](#getting-help).
 
 ### Windows
 
-OpenAlice's Workspace feature spawns bash-based bootstrap scripts to materialize new workspaces, so a POSIX shell environment is required:
+OpenAlice can run from a source checkout on Windows, but the broader experience
+may still have rough edges because we do not dogfood Windows daily.
 
-- **Recommended:** install [Git for Windows](https://gitforwindows.org/) and accept the default *"Use Git from the Windows Command Prompt"* option during setup — this puts `bash` plus the POSIX utilities the scripts depend on (`sed`, `cp`, `mkdir`, `basename`, `printf`, etc.) on your PATH.
-- **Alternative:** run OpenAlice from inside [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) — the Linux env handles everything natively.
+- **Recommended:** install [Git for Windows](https://gitforwindows.org/) before cloning.
+- **Alternative:** run OpenAlice from inside [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install).
 
-Native `cmd.exe` / PowerShell alone are not supported (no `bash`, no POSIX utilities). If `bash` isn't on PATH when you create a workspace, the bootstrap fails with an inline hint pointing back here.
+Built-in workspace templates use OpenAlice's bundled Node/git path. Some
+third-party templates may still expect `bash`; for those, Git for Windows or
+WSL2 is the safest path. Bug reports very welcome.
 
-Note: we don't currently dogfood OpenAlice on Windows, so the broader experience (PTY rendering, file watching, paths with spaces) may have rough edges. Bug reports very welcome.
+## Installation & Deployment
 
-## Authentication
+The README keeps the happy path short. Full setup docs live at
+[openalice.ai/docs](https://openalice.ai/docs).
 
-OpenAlice has a single admin-token gate at the web boundary. Three modes,
-keyed off whether the bound interface is loopback:
+For a local source checkout, use the Quick Start above: `pnpm install`, then
+`pnpm dev`, then open the UI URL printed by the terminal. OpenAlice does not
+need Postgres, Redis, or a separate database; state is file-backed under
+`~/.openalice` by default.
 
-**Local dev** (`pnpm dev`) — zero friction. Requests from `127.0.0.1` /
-`::1` skip the gate entirely. You won't see a login screen and don't need
-to know auth exists. This passthrough is disabled if you set
-`OPENALICE_TRUSTED_PROXIES` (because with a proxy in front, every request
-looks like localhost to Alice — trusting it would let the public in).
-
-**Server / Docker / LAN-exposed** — a 256-bit admin token is generated on
-first boot and printed **once** to stdout. Grab it, paste it into the
-login screen on first browser visit, the session cookie lasts 7 days.
-
-```bash
-# Find the token from your container or process logs:
-docker logs openalice 2>&1 | grep -A1 'admin token'
-```
-
-**Rotate the token** — delete `~/.openalice/data/config/auth.json` (in
-Docker: `<volume>/data/config/auth.json`) and restart. The
-next boot prints a fresh token and revokes all existing sessions.
-
-**Escape hatch** — `OPENALICE_DISABLE_AUTH=1` turns the gate off. Only
-do this when something else guarantees the boundary (Tailscale ACL, VPN,
-reverse-proxy auth). Refusing to start with `bind=0.0.0.0` and no token
-is the default; this env flag is the explicit opt-out.
-
-What the gate covers: every `/api/*` route, the workspace PTY WebSocket,
-and CSRF (cross-origin mutations are 403'd via Origin allowlist). The
-React bundle itself is public — otherwise the login page couldn't load.
-
-## Run on a server (Docker)
-
-For self-hosting on a VPS or always-on box. The image bundles `claude` and
-`codex` CLIs — no host install needed.
+For a server or always-on machine, Docker Compose is the recommended path. The
+image bundles the Web UI, Alice backend, UTA service, workspace templates, and
+the `claude` / `codex` CLIs:
 
 ```bash
 git clone https://github.com/TraderAlice/OpenAlice.git
@@ -377,123 +354,28 @@ cd OpenAlice
 docker compose up -d --build
 ```
 
-First-time auth (one-shot — credentials persist in the data volume so the
-container can be rebuilt without losing them):
+On first boot, read the admin token from the logs and open
+`http://<server-host>:47331`:
 
 ```bash
-docker exec -it openalice claude        # OAuth: paste URL into any browser
-docker exec -it openalice codex login   # same dance for codex
+docker compose logs openalice | grep -A6 'First-run admin token'
 ```
 
-Then open `http://<your-server>:47331` in a browser. You'll hit the
-admin-token login screen — see [Authentication](#authentication) above
-for how to retrieve the first-run token from `docker logs`.
-
-**Notes**
-
-- All state — config, workspaces, claude/codex credentials, logs — lives in
-  the `openalice-data` named volume. `docker compose down -v` is the
-  factory reset.
-- Already have claude/codex auth on the host? Skip the `docker exec` step
-  by uncommenting the bind-mount lines in `docker-compose.yml` to reuse
-  your local `~/.claude` and `~/.codex`.
-- The MCP server (port 47332) is intentionally **not** exposed externally;
-  it's consumed by the CLIs running inside the container only.
-- The base image is `node:22-trixie-slim` (Debian 13) because several
-  native deps (notably `longbridge`) ship glibc 2.39 binaries that older
-  Debians don't have, and workspace bootstrap scripts need `bash` + POSIX
-  utils. Alpine doesn't qualify on either count (musl libc, no bash).
-
-## Remote access (Tailscale / LAN / reverse proxy)
-
-Once the bind + admin token basics are in place, OpenAlice works over
-any network path. Ordered from most to least recommended:
-
-**Tailscale / VPN / LAN — direct.** Bind a non-loopback interface and
-log in with the admin token. No origin configuration needed: the UI,
-the API, and the workspace PTY WebSocket all accept same-origin
-requests regardless of which host you reached them through — a LAN IP,
-a Tailscale IP, a MagicDNS name.
+Then authenticate the agent CLIs you want to use inside the container:
 
 ```bash
-OPENALICE_BIND_HOST=0.0.0.0 node dist/main.js   # the Docker image already binds 0.0.0.0
+docker exec -it openalice claude
+docker exec -it openalice codex login
 ```
 
-Then open `http://<machine-ip-or-tailnet-name>:47331` and paste the
-admin token. Tailscale Serve also works (and gives you HTTPS for free) —
-point it at `127.0.0.1:47331` and you don't even need to change the bind.
+For details, use the docs:
 
-**Reverse proxy (Caddy / nginx) — for HTTPS or a domain.** Terminate
-TLS at the proxy and tell Alice which peer to trust:
-
-```bash
-OPENALICE_TRUSTED_PROXIES=127.0.0.1   # the proxy's IP, as Alice sees it
-```
-
-Two things to know:
-
-- Setting `OPENALICE_TRUSTED_PROXIES` disables the localhost bypass —
-  required, since every request now arrives from the proxy's IP. It also
-  makes Alice honor `X-Forwarded-Proto` / `X-Forwarded-For` from that
-  peer (and only that peer).
-- The proxy must pass through `Host`, the WebSocket `Upgrade` headers,
-  and `X-Forwarded-Proto` (so the session cookie is marked `Secure`).
-  Caddy's `reverse_proxy` does all three out of the box. For nginx:
-
-  ```nginx
-  location / {
-    proxy_pass http://127.0.0.1:47331;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-  }
-  ```
-
-**Public internet.** Mechanically the same as the reverse-proxy setup,
-but think twice: this is a trading workbench holding broker
-credentials. Prefer keeping it inside a tailnet/VPN; if you do expose
-it, HTTPS is non-negotiable and proxy-level auth (basic auth, OAuth
-proxy, client certs) in front of Alice's own token gate is worth the
-extra step.
-
-**Cross-origin topologies** (UI served from a different origin than the
-backend — none of the setups above need this): allowlist the UI's
-origin explicitly with `WEB_TERMINAL_ALLOWED_ORIGINS=<origin>[,…]` for
-the PTY WebSocket and `OPENALICE_CSRF_TRUSTED_ORIGINS=<origin>[,…]` for
-mutating API calls.
-
-## Configuration
-
-All config lives in `~/.openalice/data/config/` as JSON files with Zod validation — one global store shared by dev checkouts and the desktop app (the `OPENALICE_HOME` env var overrides the root; Docker uses the mounted volume). Missing files fall back to sensible defaults. You can edit these files directly or use the Web UI — except `accounts.json`, which is sealed (encrypted at rest) and managed through the UI.
-
-**AI Provider** — The model runs inside the workspace CLI using its own login — e.g. your local Claude Code or Codex login, no API key needed. For api-key providers (Anthropic, OpenAI, Google, GLM, MiniMax, Kimi, DeepSeek, …), add credentials in the Web UI's **AI Provider** vault; each credential declares the wire shapes it speaks and gets injected into workspaces, picking the shape the target agent uses. Subscription logins stay in the CLI.
-
-**Trading** — Unified Trading Account (UTA) architecture. Each account in `accounts.json` becomes a UTA with its own broker connection, git history, and guard config. Broker-specific settings live in the `brokerConfig` field — each broker type declares its own schema and validates it internally.
-
-| File | Purpose |
-|------|---------|
-| `engine.json` | Trading pairs, tick interval, timeframe |
-| `agent.json` | Max agent steps, evolution mode toggle, Claude Code tool permissions |
-| `ai-provider.json` | Central credential vault — api-key credentials + their wire capabilities, injected into workspaces |
-| `accounts.json` | Trading accounts with `type`, `enabled`, `guards`, and `brokerConfig` (broker-specific settings) |
-| `connectors.json` | Web/MCP server ports |
-| `web-subchannels.json` | Web UI chat sub-channel definitions (per-channel system prompt + disabled-tools overrides) |
-| `tools.json` | Tool enable/disable configuration |
-| `market-data.json` | Data Hub (`enabled` / `baseUrl`), per-asset-class vendors, provider API keys (fallback when the hub is off or uncovered) |
-| `news.json` | RSS feeds, fetch interval, retention period |
-| `snapshot.json` | Account snapshot interval and retention |
-| `trading.json` | Trading-engine knobs — external-order observation cadence (`observeExternalOrdersEvery`, default `15m`, `off` to disable) |
-| `compaction.json` | Context window limits, auto-compaction thresholds |
-
-The persona prompt uses a **default + user override** pattern:
-
-| Default (git-tracked) | User override |
-|------------------------|---------------------------|
-| `default/persona.default.md` | `~/.openalice/data/brain/persona.md` |
-
-On first run, defaults are auto-copied to the user override path. Edit the user files to customize without touching version control.
+- [Installation](https://openalice.ai/docs/getting-started/installation) — desktop, source, and platform notes
+- [Docker Deployment](https://openalice.ai/docs/deployment/docker) — build, first login, CLI auth, updates, reset, troubleshooting
+- [Self-Hosting & Security](https://openalice.ai/docs/deployment/self-hosting) — deployment shapes and safety boundaries
+- [Remote Access](https://openalice.ai/docs/deployment/remote-access) — LAN, Tailscale, Caddy, nginx, and public-internet cautions
+- [Data & Credentials](https://openalice.ai/docs/deployment/data-and-credentials) — data roots, admin-token rotation, sealed broker credentials, ports, backup
+- [Configuration Reference](https://openalice.ai/docs/configuration/configuration-reference) — every config file, field, and default
 
 ## Project Structure
 
