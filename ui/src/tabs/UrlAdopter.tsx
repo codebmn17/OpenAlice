@@ -52,8 +52,7 @@ export function UrlAdopter() {
             but keep it above the dynamic route for readability. */}
         <Route path="/market/boards/:board" element={<AdoptMarketBoard />} />
         <Route path="/market/:assetClass/:symbol" element={<AdoptMarketDetail />} />
-        {/* /trading-as-git no longer creates a tab — sidebar-only activity. */}
-        <Route path="/trading-as-git" element={<SetSidebarOnly section="trading-as-git" />} />
+        <Route path="/trading-as-git" element={<AdoptStatic spec={{ kind: 'trading-as-git', params: {} }} />} />
 
         {/* Settings — one entry per category */}
         <Route path="/settings" element={<AdoptStatic spec={{ kind: 'settings', params: { category: 'general' } }} />} />
@@ -91,7 +90,7 @@ export function UrlAdopter() {
         <Route path="/workspaces/:wsId" element={<AdoptWorkspace />} />
         <Route path="/workspaces/:wsId/s/:sessionId" element={<AdoptWorkspace />} />
 
-        {/* Legacy redirects — preserved from sections.tsx */}
+        {/* Legacy redirects */}
         <Route path="/logs" element={<Navigate to="/dev/logs" replace />} />
         <Route path="/events" element={<Navigate to="/dev/logs" replace />} />
         <Route path="/agent-status" element={<Navigate to="/dev/logs" replace />} />
@@ -244,23 +243,9 @@ function RedirectUtaDetail() {
 }
 
 /**
- * Some activities have no tab kind (e.g. trading-as-git is sidebar-only).
- * Visiting their URL should just open the sidebar; no tab gets created.
- */
-function SetSidebarOnly({ section }: { section: import('./types').ActivitySection }) {
-  const setSidebar = useWorkspace((state) => state.setSidebar)
-  useEffect(() => {
-    setSidebar(section)
-  }, [section, setSidebar])
-  return null
-}
-
-/**
- * Map a ViewSpec to the ActivitySection whose sidebar should accompany
- * it. URL adoption uses this so a fresh page load / deep link / browser
- * back-forward lands on a screen with the matching sidebar already
- * open — otherwise `selectedSidebar` stays at whatever was persisted
- * (or null on first run), and the page renders without left context.
+ * Map a ViewSpec to the ActivitySection highlighted in the ActivityBar.
+ * Page-owned sidebars keep the highlight in sync while the app shell stays
+ * unaware of each surface's local navigation.
  *
  * `uta-detail` is intentionally Portfolio's sidebar: the URL lives
  * under /settings/uta/:id for historical reasons but the page is a
@@ -277,6 +262,7 @@ function specToSection(spec: ViewSpec): ActivitySection {
     case 'template-catalog':
     case 'template-detail':
     case 'file-viewer':        return 'workspaces'
+    case 'trading-as-git':     return 'trading-as-git'
     case 'portfolio':
     case 'uta-detail':         return 'portfolio'
     case 'issue':
@@ -295,8 +281,8 @@ function specToSection(spec: ViewSpec): ActivitySection {
 /**
  * Compare focused tab against `spec` and openOrFocus only if different —
  * skips redundant store updates on every render. Also activates the
- * matching sidebar so URL-driven navigation (fresh load, deep link,
- * back-forward) lands with the expected left-rail context, not blank.
+ * matching ActivityBar section so URL-driven navigation (fresh load,
+ * deep link, back-forward) lands with the expected navigation context.
  */
 function useAdopt(spec: ViewSpec) {
   const openOrFocus = useWorkspace((state) => state.openOrFocus)
